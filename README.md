@@ -6,7 +6,7 @@ Tasks:
 - [ ] Implement a basic Skytable client driver for NodeJS
 - [ ] Functionality:
   - [ ] Implement the full Skyhash protocol
-  - [ ] Be able to send and receive queries and decode them ergonomically
+  - [ ] Be able to send and receive queries and decode them ergonomically (into appropriate objects and/or types)
   - [ ] Should have a way to use TLS
 
 > For contributors: You might find the [Rust client driver](https://github.com/skytable/client-rust) to be a good reference.
