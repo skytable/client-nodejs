@@ -1,0 +1,18 @@
+{
+  "name": "client-nodejs",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "description": "A NodeJS client driver for Skytable",
+  "repository": "https://github.com/skytable/client-nodejs.git",
+  "author": "Sayan Nandan <nandansayan@outlook.com>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@types/node": "^20.10.4"
+  }
+}
