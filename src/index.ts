@@ -1,2 +1,3 @@
-export {Config} from './Config';
-export {Query, SQParam} from './Query';
+export {Config} from './Config'
+export {Query} from './Query'
+

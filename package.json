@@ -7,10 +7,13 @@
   "author": "Sayan Nandan <nandansayan@outlook.com>",
   "license": "Apache-2.0",
   "devDependencies": {
+    "nodemon": "^3.0.2",
+    "tsx": "^4.6.2",
     "typescript": "^5.3.3"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npx tsx examples/test.ts"
   },
   "dependencies": {
     "@types/node": "^20.10.4"
