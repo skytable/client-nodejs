@@ -16,6 +16,7 @@ export function createConnection(options: NetConnectOpts): Promise<Socket> {
 }
 
 export function createConnectionTls(options: ConnectionTLSOptions): Promise<TLSSocket> {
+  // TODO createConnectionTls
   return new Promise((resolve, reject) => {
     const conn = connectTcpTLS(options)
     conn.once('connect', () => {
@@ -29,11 +30,10 @@ export function createConnectionTls(options: ConnectionTLSOptions): Promise<TLSS
   })
 }
 
-export function connectionWrite(connect, buffer) {
+export function connectionWrite(connect, buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     connect.write(buffer, (writeError) => {
       if (writeError) {
-        console.error(`Error Write: ${writeError.message}`)
         reject(writeError)
         return
       }
@@ -42,7 +42,6 @@ export function connectionWrite(connect, buffer) {
         resolve(data)
       })
       connect.once('error', (err) => {
-        console.log('error, ============', err)
         reject(err)
       })
     })

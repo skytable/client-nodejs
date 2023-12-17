@@ -1,29 +1,6 @@
-import {createConnection} from "./connection"
+import {connectionWrite, createConnection} from "./connection"
 import {createSkytable} from "./skytable"
-
-export function getClientHandshake(config: Config) {
-  const username = config.getUsername()
-  const password = config.getPassword()
-
-  return [
-    'H\x00\x00\x00\x00\x00',
-    username.length,
-    '\n',
-    password.length,
-    '\n',
-    username,
-    password
-  ].join('')
-}
-
-export function readBufferToHandshakeRes(buffer: Buffer) {
-  const [h, c1, c2, msg] = Array.from(buffer.toJSON().data)
-
-  return {
-    code: [String.fromCharCode(h), c1, c2].join(''),
-    msg
-  }
-}
+import {bufferToHandshakeResult, getClientHandshake} from "./protocol"
 
 /**
  * Configuration for a client connection (single node)
@@ -82,35 +59,20 @@ export class Config {
   }
 
   async connect() {
-    const connect = await createConnection({port: this.port, host: this.host})
+    try {
+      const connect = await createConnection({port: this.port, host: this.host})
 
-    return new Promise((resolve, reject) => {
-      connect.write(getClientHandshake(this), (writeError) => {
-        if (writeError) {
-          console.error(`Error Write: ${writeError.message}`)
-          return
-        }
+      const data = await connectionWrite(connect, getClientHandshake(this))
 
-        connect.once('data', (data) => {
-          const { code, msg } = readBufferToHandshakeRes(data);
-          console.log('get data: ', code + msg)
-          switch (code) {
-            case 'H00': // Success
-              console.log('Success handshake')
-              resolve(createSkytable(connect));
-              return
-            case 'H01': // Error
-              // TODO HandshakeError: handshake error code {msg}
-              resolve(new Error(`handshake error code ${msg}`));
-              return
-          }
+      await bufferToHandshakeResult(data)
 
-        })
-      })
-    })
+      return createSkytable(connect)
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   connectTSL(cert: string) {
-
+    // TODO connectTSL
   }
 }
