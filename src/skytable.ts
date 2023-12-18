@@ -16,8 +16,9 @@ export function createSkytable(connection: Socket | TLSSocket) {
       console.log([requestData.join('')], '=========query============')
       const res = await connectionWrite(connection, buffer)
 
-      const { data: resData } = formatResponse(res);
-      return resData;
+      const response = formatResponse(res);
+      console.log(response, '==========response=======')
+      return response.data;
     } catch (e) {
       console.error(e)
     }

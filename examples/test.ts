@@ -12,19 +12,27 @@ async function test() {
   // await db.query('create space testmyspace')
   await db.query('USE testmyspace')
   // await db.query("create model testmyspace.user(username: string, password: string)")
-  await db.query(
-    'insert into testmyspace.user(?, ?)',
-    'test1',
-    `a123456`,
+  const res = await db.query(
+    'SELECT all *  FROM int limit ?',
+    100
   )
-  const [username, password] = await db.query(
-    'select * FROM testmyspace.user WHERE username = ? and password = ?',
-    'test1',
-    'a123456'
-  )
+  // await db.query(
+  //   'insert into testmyspace.user(?, ?)',
+  //   'test2',
+  //   `a123456`,
+  // )
+  // const res = await db.query(
+  //   'SELECT * FROM mymodel where username = ?',
+  //   'sayan6'
+  // )
 
-  console.log(username, password, 'result=========');
-  
+  // const res = await db.query(
+  //   'SELECT * FROM testmyspace.int where username = ?',
+  //   10001n
+  // )
+
+  console.log(res, 'result=========');
+
 }
 
 test()

@@ -121,7 +121,11 @@
       "@types/*": [
         "types/*"
       ]
-    }
+    },
+    "lib": [
+      "es2016.full",
+      "es2020.bigint"
+    ]
   },
   "include": [
     "src/**/*.ts",
