@@ -2,11 +2,11 @@ import {Socket} from "node:net"
 import {TLSSocket} from "node:tls"
 import {connectionWrite} from "./connection"
 import {encodeParams, formatResponse} from "./protocol"
-import {SQParam} from "@types/skytable"
+import { SQParam } from "@types/skytable"
 
 export function createSkytable(connection: Socket | TLSSocket) {
 
-  const query = async (query: string, ...params: SQParam[]) => {
+  const query = async (query: string, ...params: SQParam[]): Promise<any> => {
     try {
       const dataframe = `${query}${encodeParams(params)}`
       const data = [query.length, '\n', dataframe]
@@ -16,7 +16,8 @@ export function createSkytable(connection: Socket | TLSSocket) {
       console.log([requestData.join('')], '=========query============')
       const res = await connectionWrite(connection, buffer)
 
-      return formatResponse(res)
+      const { data: resData } = formatResponse(res);
+      return resData;
     } catch (e) {
       console.error(e)
     }

@@ -115,14 +115,14 @@
     "rootDir": "./src",
     "baseUrl": ".",
     "paths": {
-      "@": [
+      "@/*": [
         "src/*"
       ],
       "@types/*": [
         "types/*"
       ]
     }
-  },,
+  },
   "include": [
     "src/**/*.ts",
     "types/**/*.d.ts"

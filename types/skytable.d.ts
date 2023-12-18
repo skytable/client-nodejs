@@ -6,4 +6,4 @@ export type ConnectionOptions = {
 
 export type ConnectionTlsOptions = ConnectionOptions & { certFile: string }
 
-export type SQParam = string | number | boolean;
+export type SQParam = string | number | boolean | null | bigint;

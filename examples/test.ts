@@ -17,10 +17,14 @@ async function test() {
     'test1',
     `a123456`,
   )
-  await db.query(
-    'select * FROM testmyspace.user WHERE username = ?',
-    'test',
+  const [username, password] = await db.query(
+    'select * FROM testmyspace.user WHERE username = ? and password = ?',
+    'test1',
+    'a123456'
   )
+
+  console.log(username, password, 'result=========');
+  
 }
 
 test()

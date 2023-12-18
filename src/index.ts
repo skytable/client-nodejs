@@ -1,2 +1,2 @@
-export {Config} from './Config'
+export {Config} from './config'
 
