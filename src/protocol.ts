@@ -125,7 +125,7 @@ function parseSkytableData(buffer: Buffer): Column[] {
     case 4: // 32-bit Unsigned Integer
       return parseNumberNext(Number, buffer);
     case 5: // 64-bit Unsigned Integer
-      return parseNumberNext(BigInt, buffer);
+      return parseNumberNext<bigint>(BigInt, buffer);
     case 6: // 8-bit Signed Integer
       return parseNumberNext(Number, buffer);
     case 7: // 16-bit Signed Integer
@@ -135,9 +135,9 @@ function parseSkytableData(buffer: Buffer): Column[] {
     case 9: // 64-bit Signed Integer
       return parseNumberNext<bigint>(BigInt, buffer);
     case 10: // f32
-      return parseNumberNext<number>(Number.parseFloat, buffer);
+      return parseNumberNext(Number.parseFloat, buffer);
     case 11: // f64
-      return parseNumberNext<number>(Number.parseFloat, buffer);
+      return parseNumberNext(Number.parseFloat, buffer);
     case 12: {
       //  Binary <size>\n<payload>,
       const sizeOffset = getFirstSplitOffset(buffer);

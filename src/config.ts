@@ -1,6 +1,15 @@
-import { connectionWrite, createConnection } from './connection';
+import {
+  connectionWrite,
+  createConnection,
+  createConnectionTls,
+} from './connection';
 import { createSkytable } from './skytable';
 import { bufferToHandshakeResult, getClientHandshake } from './protocol';
+import type {
+  ConnectionOptions as ConnectionTLSOptions,
+  TLSSocket,
+} from 'node:tls';
+import { Socket } from 'node:net';
 
 /**
  * Configuration for a client connection (single node)
@@ -10,6 +19,7 @@ export class Config {
   private password: string;
   private host: string;
   private port: number;
+  private connection: Socket | TLSSocket | undefined;
 
   /**
    * Create a new configuration
@@ -63,6 +73,14 @@ export class Config {
     return this.port;
   }
 
+  /**
+   * Get the connection
+   * @returns The current connection
+   */
+  getConnection() {
+    return this.connection;
+  }
+
   async connect() {
     const connect = await createConnection({
       port: this.port,
@@ -73,10 +91,30 @@ export class Config {
 
     await bufferToHandshakeResult(data);
 
+    this.connection = connect;
+
     return createSkytable(connect);
   }
 
-  connectTSL(cert: string) {
-    // TODO connectTSL
+  async connectTSL(options: ConnectionTLSOptions) {
+    const connect = await createConnectionTls({
+      port: this.port,
+      host: this.host,
+      ...options,
+    });
+
+    const data = await connectionWrite(connect, getClientHandshake(this));
+
+    await bufferToHandshakeResult(data);
+
+    this.connection = connect;
+
+    return createSkytable(connect);
+  }
+
+  async disconnect() {
+    if (this.connection) {
+      this.connection.destroySoon();
+    }
   }
 }
