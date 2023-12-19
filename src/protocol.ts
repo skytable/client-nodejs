@@ -242,7 +242,7 @@ export function formatResponse(buffer: Buffer): QueryResult {
         const result = parseSkytableData(buffer);
         // FIXME to be better
         return result?.[0];
-      } 
+      }
       throw new TypeError('unknown response type');
   }
 }
