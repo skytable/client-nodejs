@@ -3,16 +3,34 @@
   "version": "1.0.0",
   "main": "dist/index.js",
   "description": "Offical NodeJS client driver for Skytable",
-  "repository": "https://github.com/skytable/client-nodejs.git",
   "author": "Sayan Nandan <nandansayan@outlook.com>",
   "license": "Apache-2.0",
-  "devDependencies": {
-    "typescript": "^5.3.3"
-  },
+  "repository": {
+		"url": "https://github.com/skytable/client-nodejs"
+	},
+	"bugs": {
+		"url": "https://github.com/skytable/client-nodejs/issues"
+	},
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npx tsx examples/test.ts",
+    "formatting": "prettier src --check",
+    "prettier:fix": "prettier src --write"
   },
   "dependencies": {
     "@types/node": "^20.10.4"
-  }
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "prettier": "^3.1.1",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+		"access": "public"
+	},
+  "keywords": [
+		"skytable",
+		"skytable-client"
+	]
 }
