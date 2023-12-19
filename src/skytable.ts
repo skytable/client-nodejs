@@ -1,30 +1,29 @@
-import {Socket} from "node:net"
-import {TLSSocket} from "node:tls"
-import {connectionWrite} from "./connection"
-import {encodeParams, formatResponse} from "./protocol"
-import { SQParam } from "@types/skytable"
+import { Socket } from 'node:net';
+import { TLSSocket } from 'node:tls';
+import { connectionWrite } from './connection';
+import { encodeParams, formatResponse } from './protocol';
+import { SQParam } from '@types/skytable';
 
 export function createSkytable(connection: Socket | TLSSocket) {
-
   const query = async (query: string, ...params: SQParam[]): Promise<any> => {
     try {
-      const dataframe = `${query}${encodeParams(params)}`
-      const data = [query.length, '\n', dataframe]
-      const requestData = ['S', data.join('').length, '\n', ...data]
-      const buffer = Buffer.from(requestData.join(''), 'utf-8')
+      const dataframe = `${query}${encodeParams(params)}`;
+      const data = [query.length, '\n', dataframe];
+      const requestData = ['S', data.join('').length, '\n', ...data];
+      const buffer = Buffer.from(requestData.join(''), 'utf-8');
 
-      console.log([requestData.join('')], '=========query============')
-      const res = await connectionWrite(connection, buffer)
+      console.log([requestData.join('')], '=========query============');
+      const res = await connectionWrite(connection, buffer);
 
       const response = formatResponse(res);
-      console.log(response, '==========response=======')
+      console.log(response, '==========response=======');
       return response.data;
     } catch (e) {
-      console.error(e)
+      console.error(e);
     }
-  }
+  };
 
   return {
-    query
-  }
+    query,
+  };
 }
