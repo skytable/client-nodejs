@@ -111,6 +111,7 @@
     // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
     "skipLibCheck": true,
     /* Skip type checking all .d.ts files. */
+    "declaration": true,
     "outDir": "./dist",
     "rootDir": "./src",
     "baseUrl": ".",
