@@ -26,9 +26,11 @@ export type Rows = Row[];
 
 export type QueryResult = null | Row | Rows;
 
-
 export function createSkytable(connection: Socket | TLSSocket) {
-  const query = async (query: string, ...params: SQParam[]): Promise<QueryResult> => {
+  const query = async (
+    query: string,
+    ...params: SQParam[]
+  ): Promise<QueryResult> => {
     const dataframe = `${query}${encodeParams(params)}`;
     const data = [query.length, '\n', dataframe];
     const requestData = ['S', data.join('').length, '\n', ...data];

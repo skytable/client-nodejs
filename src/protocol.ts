@@ -1,6 +1,16 @@
 import { Config } from './config';
 import type { Column, QueryResult, Row, Rows, SQParam } from './skytable';
 
+const PARAMS_TYPE = {
+  NULL: '\x00',
+  BOOLEAN: '\x01',
+  UINT: '\x02',
+  SINT: '\x03',
+  FLOAT: '\x04',
+  BINARY: '\x05',
+  STRING: '\x06',
+};
+
 const RESPONSES_RESULT = {
   ERROR: 0x10,
   ROW: 0x11,
@@ -26,24 +36,39 @@ export function encodeParams(parameters: SQParam[]): string {
     .map((param) => {
       switch (typeof param) {
         case 'string':
-          return ['\x06', param.length, '\n', param].join('');
+          return [PARAMS_TYPE.STRING, param.length, '\n', param].join('');
         case 'number':
           // 2 Unsigned integer 64
           // 3 Signed integer 64
           // 4 Float A 64-bit
           return [
-            isFloat(param) ? '\x04' : param < 0 ? '\x03' : '\x02',
+            isFloat(param)
+              ? PARAMS_TYPE.FLOAT
+              : param < 0
+                ? PARAMS_TYPE.SINT
+                : PARAMS_TYPE.UINT,
             String(param),
             '\n',
           ].join('');
         case 'bigint':
-          return [param < 0 ? '\x03' : '\x02', String(param), '\n'].join('');
+          return [
+            param < 0 ? PARAMS_TYPE.SINT : PARAMS_TYPE.UINT,
+            String(param),
+            '\n',
+          ].join('');
         case 'boolean':
-          return ['\x01', Number(param) === 1 ? '\x01' : 0].join('');
+          return [PARAMS_TYPE.BOOLEAN, Number(param) === 1 ? '\x01' : 0].join(
+            '',
+          );
         default:
           // 5 A binary blob [5<size>\n<payload>]
           if (Buffer.isBuffer(param)) {
-            return ['\x05', Buffer.byteLength(param), '\n', (new Uint8Array(Array.from(param))).join('')].join('');
+            return [
+              PARAMS_TYPE.BINARY,
+              Buffer.byteLength(param),
+              '\n',
+              new Uint8Array(Array.from(param)).join(''),
+            ].join('');
           }
           // null undefined
           if (param == null) {
@@ -190,7 +215,9 @@ export function formatResponse(buffer: Buffer): QueryResult {
     case RESPONSES_RESULT.MULTIROW:
       return formatRows(buffer.subarray(1));
     case RESPONSES_RESULT.ERROR:
-      throw new TypeError(`response error code: ${buffer.subarray(1, 2).readInt8()}`);
+      throw new TypeError(
+        `response error code: ${buffer.subarray(1, 2).readInt8()}`,
+      );
     default:
       throw new TypeError('unknown response type');
   }
