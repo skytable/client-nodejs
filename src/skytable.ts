@@ -12,7 +12,7 @@ export type ConnectionTlsOptions = ConnectionOptions & { certFile: string };
 
 type ColumnBase = string | number | boolean | null | bigint;
 
-export type SQParam = ColumnBase;
+export type SQParam<T = ColumnBase> = T | SQParam<T>[];
 
 export type ColumnBinary = typeof Buffer;
 
@@ -36,8 +36,12 @@ export function createSkytable(connection: Socket | TLSSocket) {
     const requestData = ['S', data.join('').length, '\n', ...data];
     const buffer = Buffer.from(requestData.join(''), 'utf-8');
 
+    console.log(dataframe, '===========query==========');
+    
     const res = await connectionWrite(connection, buffer);
 
+    console.log(res, '===============result==========');
+    
     return formatResponse(res);
   };
 

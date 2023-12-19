@@ -7,32 +7,25 @@ async function test() {
     '127.0.0.1',
     2003
   )
-
+  const spaceName = `testTable${Date.now()}Space`;
+  const tableName = `${spaceName}.testTable`;
   const db = await config.connect()
-  // await db.query('create space testmyspace')
-  await db.query('USE testmyspace')
-  // await db.query("create model testmyspace.user(username: string, password: string)")
-  const res = await db.query(
-    'SELECT all *  FROM int limit ?',
-    100
-  )
-  // await db.query(
-  //   'insert into testmyspace.user(?, ?)',
-  //   'test2',
-  //   `a123456`,
-  // )
-  // const res = await db.query(
-  //   'SELECT * FROM mymodel where username = ?',
-  //   'sayan6'
-  // )
 
-  // const res = await db.query(
-  //   'SELECT * FROM testmyspace.int where username = ?',
-  //   10001n
-  // )
+  try {
+    await db.query('create space ' + spaceName)
+    await db.query('use ' + spaceName)
+    await db.query(`CREATE MODEL ${tableName}(username: string, password: string, null email_id: string)`)
+    await db.query(
+      `INSERT INTO ${tableName} { username: ?, password: ?, email_id: ? }`,
+      'test',
+      'password',
+      null
+    )
+  } finally {
+    // db.query('DROP SPACE ALLOW NOT EMPTY ' + spaceName)
 
-  console.log(res, 'result=========');
-
+    config.disconnect();
+  }
 }
 
 test()
