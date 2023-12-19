@@ -1,5 +1,5 @@
 import { Config } from './config';
-import { SQParam } from './skytable.d';
+import type { Column, QueryResult, Row, Rows, SQParam } from './skytable';
 
 const RESPONSES_RESULT = {
   ERROR: 0x10,
@@ -57,7 +57,7 @@ export function encodeParams(parameters: SQParam[]): string {
     .join('');
 }
 
-function getFirstSplitOffset(buffer: Buffer, split = '\n') {
+function getFirstSplitOffset(buffer: Buffer, split = '\n'): number {
   for (let i = 0; i < buffer.length; i++) {
     if (buffer[i] === split.charCodeAt(0)) {
       return i;
@@ -69,18 +69,18 @@ function getFirstSplitOffset(buffer: Buffer, split = '\n') {
 function parseNumberNext<T = number>(
   formatFn: (string: string) => T,
   buffer: Buffer,
-) {
+): Column[] {
   const offset = getFirstSplitOffset(buffer);
   const val = formatFn(buffer.subarray(0, offset).toString('utf-8'));
 
   return parseNext(val, buffer.subarray(offset + 1));
 }
 
-function parseNext(val: any, buffer: Buffer): SQParam[] {
+function parseNext(val: any, buffer: Buffer): Column[] {
   return [val, ...parseSkytableData(buffer)];
 }
 
-function parseSkytableData(buffer: Buffer): any[] {
+function parseSkytableData(buffer: Buffer): Column[] {
   if (!buffer.length) {
     return [];
   }
@@ -140,14 +140,14 @@ function parseSkytableData(buffer: Buffer): any[] {
       if (size === 0) {
         return parseNext([], buffer.subarray(sizeOffset + 1));
       }
-      return [parseSkytableData(buffer.subarray(sizeOffset + 1))];
+      return [parseSkytableData(buffer.subarray(sizeOffset + 1)) as Column];
     }
     default:
       throw new Error(`Unknown data type: ${type}`);
   }
 }
 
-export function formatRow(buffer: Buffer) {
+export function formatRow(buffer: Buffer): Row {
   const offset = getFirstSplitOffset(buffer);
   // const columnCount = Number(buffer.subarray(0, offset).toString("utf-8"))
   const dataType = buffer.subarray(offset + 1);
@@ -155,7 +155,7 @@ export function formatRow(buffer: Buffer) {
   return parseSkytableData(dataType);
 }
 
-export function formatRows(buffer: Buffer) {
+export function formatRows(buffer: Buffer): Rows {
   const offset = getFirstSplitOffset(buffer);
   const rowCount = Number(buffer.subarray(0, offset).toString('utf-8'));
 
@@ -165,34 +165,32 @@ export function formatRows(buffer: Buffer) {
   const columnCount = Number(
     buffer.subarray(0, columnOffset).toString('utf-8'),
   );
-  const tableData = parseSkytableData(buffer.subarray(offset + 1));
+  const tableData: Column[] = parseSkytableData(buffer.subarray(offset + 1));
 
-  const result = [];
+  const result: Rows = [];
+
   for (let i = 0; i < rowCount; i++) {
     result[i] = [];
     for (let j = 0; j < columnCount; j++) {
       result[i][j] = tableData[i * columnCount + j];
     }
   }
+
   return result;
 }
 
-export function formatResponse(res: Buffer) {
-  const type = res.readInt8(0);
+export function formatResponse(buffer: Buffer): QueryResult {
+  const type = buffer.readInt8(0);
 
   switch (type) {
     case RESPONSES_RESULT.EMPTY:
-      return { success: true, data: [] };
+      return null;
     case RESPONSES_RESULT.ROW:
-      return { success: true, data: formatRow(res.subarray(1)) };
+      return formatRow(buffer.subarray(1));
     case RESPONSES_RESULT.MULTIROW:
-      return { success: true, data: formatRows(res.subarray(1)) };
+      return formatRows(buffer.subarray(1));
     case RESPONSES_RESULT.ERROR:
-      return {
-        success: false,
-        data: [],
-        message: 'error code ' + res.subarray(1, 2).readInt8(),
-      };
+      throw new TypeError(`response error code: ${buffer.subarray(1, 2).readInt8()}`);
     default:
       throw new TypeError('unknown response type');
   }

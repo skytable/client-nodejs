@@ -64,20 +64,16 @@ export class Config {
   }
 
   async connect() {
-    try {
-      const connect = await createConnection({
-        port: this.port,
-        host: this.host,
-      });
+    const connect = await createConnection({
+      port: this.port,
+      host: this.host,
+    });
 
-      const data = await connectionWrite(connect, getClientHandshake(this));
+    const data = await connectionWrite(connect, getClientHandshake(this));
 
-      await bufferToHandshakeResult(data);
+    await bufferToHandshakeResult(data);
 
-      return createSkytable(connect);
-    } catch (e) {
-      console.error(e);
-    }
+    return createSkytable(connect);
   }
 
   connectTSL(cert: string) {

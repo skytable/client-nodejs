@@ -36,7 +36,7 @@ export function createConnectionTls(
   });
 }
 
-export function connectionWrite(connect, buffer): Promise<Buffer> {
+export function connectionWrite(connect: Socket | TLSSocket, buffer: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     connect.write(buffer, (writeError) => {
       if (writeError) {
