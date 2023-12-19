@@ -215,7 +215,7 @@ export function formatResponse(buffer: Buffer): QueryResult {
     case RESPONSES_RESULT.MULTIROW:
       return formatRows(buffer.subarray(1));
     case RESPONSES_RESULT.ERROR:
-      throw new TypeError(
+      throw new Error(
         `response error code: ${buffer.subarray(1, 2).readInt8()}`,
       );
     default:
