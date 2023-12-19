@@ -24,7 +24,7 @@ export type Row = Column[];
 
 export type Rows = Row[];
 
-export type QueryResult = null | Row | Rows;
+export type QueryResult = Column | Row | Rows;
 
 export function createSkytable(connection: Socket | TLSSocket) {
   const query = async (

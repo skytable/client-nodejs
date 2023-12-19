@@ -12,6 +12,21 @@ const PARAMS_TYPE = {
 };
 
 const RESPONSES_RESULT = {
+  NULL: 0,
+  BOOL: 1,
+  U8INT: 2,
+  U16INT: 3,
+  U32INT: 4,
+  U64INT: 5,
+  S8INT: 6,
+  S16INT: 7,
+  S32INT: 8,
+  S64INT: 9,
+  FLOAT32: 10,
+  FLOAT64: 11,
+  BINARY: 12,
+  STRING: 13,
+  LIST: 14,
   ERROR: 0x10,
   ROW: 0x11,
   EMPTY: 0x12,
@@ -22,6 +37,10 @@ const HANDSHAKE_RESULT = {
   SUCCESS: 'H00',
   ERROR: 'H01',
 };
+
+function isResponsesResult(type: number): boolean {
+  return Object.values(RESPONSES_RESULT).includes(type);
+}
 
 function isFloat(number: number | string): boolean {
   return Number.isFinite(number) && !Number.isInteger(number);
@@ -114,31 +133,31 @@ function parseSkytableData(buffer: Buffer): Column[] {
   buffer = buffer.subarray(1);
 
   switch (type) {
-    case 0: // Null
+    case RESPONSES_RESULT.NULL: // Null
       return parseNext(null, buffer.subarray(0));
-    case 1: // Bool
+    case RESPONSES_RESULT.BOOL: // Bool
       return parseNext(Boolean(buffer.readUInt8(0)), buffer.subarray(1));
-    case 2: // 8-bit Unsigned Integer
+    case RESPONSES_RESULT.U8INT: // 8-bit Unsigned Integer
       return parseNumberNext(Number, buffer);
-    case 3: // 16-bit Unsigned Integer
+    case RESPONSES_RESULT.U16INT: // 16-bit Unsigned Integer
       return parseNumberNext(Number, buffer);
-    case 4: // 32-bit Unsigned Integer
+    case RESPONSES_RESULT.U32INT: // 32-bit Unsigned Integer
       return parseNumberNext(Number, buffer);
-    case 5: // 64-bit Unsigned Integer
+    case RESPONSES_RESULT.U64INT: // 64-bit Unsigned Integer
       return parseNumberNext<bigint>(BigInt, buffer);
-    case 6: // 8-bit Signed Integer
+    case RESPONSES_RESULT.S8INT: // 8-bit Signed Integer
       return parseNumberNext(Number, buffer);
-    case 7: // 16-bit Signed Integer
+    case RESPONSES_RESULT.S16INT: // 16-bit Signed Integer
       return parseNumberNext(Number, buffer);
-    case 8: // 32-bit Signed Integer
+    case RESPONSES_RESULT.S32INT: // 32-bit Signed Integer
       return parseNumberNext(Number, buffer);
-    case 9: // 64-bit Signed Integer
+    case RESPONSES_RESULT.S64INT: // 64-bit Signed Integer
       return parseNumberNext<bigint>(BigInt, buffer);
-    case 10: // f32
+    case RESPONSES_RESULT.FLOAT32: // f32
       return parseNumberNext(Number.parseFloat, buffer);
-    case 11: // f64
+    case RESPONSES_RESULT.FLOAT64: // f64
       return parseNumberNext(Number.parseFloat, buffer);
-    case 12: {
+    case RESPONSES_RESULT.BINARY: {
       //  Binary <size>\n<payload>,
       const sizeOffset = getFirstSplitOffset(buffer);
       const size = Number(buffer.subarray(0, sizeOffset).toString('utf-8'));
@@ -149,7 +168,7 @@ function parseSkytableData(buffer: Buffer): Column[] {
 
       return parseNext(buffer.subarray(start, end), buffer.subarray(end));
     }
-    case 13: {
+    case RESPONSES_RESULT.STRING: {
       // String <size>\n<body>
       const sizeOffset = getFirstSplitOffset(buffer);
       const size = Number(buffer.subarray(0, sizeOffset).toString('utf-8'));
@@ -158,7 +177,7 @@ function parseSkytableData(buffer: Buffer): Column[] {
 
       return parseNext(str, buffer.subarray(end));
     }
-    case 14: {
+    case RESPONSES_RESULT.LIST: {
       // List <size>\n<body>
       const sizeOffset = getFirstSplitOffset(buffer);
       const size = Number(buffer.subarray(0, sizeOffset).toString('utf-8'));
@@ -219,6 +238,11 @@ export function formatResponse(buffer: Buffer): QueryResult {
         `response error code: ${buffer.subarray(1, 2).readInt8()}`,
       );
     default:
+      if (isResponsesResult(type)) {
+        const result = parseSkytableData(buffer);
+        // FIXME to be better
+        return result?.[0];
+      } 
       throw new TypeError('unknown response type');
   }
 }
