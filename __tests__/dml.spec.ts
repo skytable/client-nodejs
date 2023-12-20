@@ -75,7 +75,7 @@ describe('DML', () => {
     }
   });
 
-  it('list type', async () => {
+  it('binary type', async () => {
     const [tableName, drop] = await getTable(db);
 
     try {
