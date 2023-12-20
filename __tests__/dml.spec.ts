@@ -1,3 +1,4 @@
+import { Rows } from '../src/skytable';
 import { getDBConfig, getTable } from './utils';
 
 describe('DML', () => {
@@ -86,6 +87,34 @@ describe('DML', () => {
       expect(
         await db.query(`SELECT * FROM ${tableName} WHERE id = ?`, 1),
       ).toEqual([BigInt(1), Buffer.from('test')]);
+    } finally {
+      await drop();
+    }
+  });
+
+  it('Multirow', async () => {
+    const [tableName, drop] = await getTable(db);
+
+    try {
+      await db.query(`CREATE MODEL ${tableName}(id: string, name: string )`);
+      for (let i = 0; i < 10; i++) {
+        await db.query(`INSERT INTO ${tableName}(?, ?)`, String(i), 'test');
+      }
+      const rows = (await db.query(
+        `SELECT ALL * FROM ${tableName} LIMIT ?`,
+        10,
+      )) as Rows;
+
+      expect(
+        rows.sort((row1, row2) =>
+          Number(row1[0] as string) > Number(row2[0] as string) ? 1 : -1,
+        ),
+      ).toEqual([
+        ...Array.from({ length: 10 }).map((_, index) => [
+          String(index),
+          'test',
+        ]),
+      ]);
     } finally {
       await drop();
     }

@@ -10,7 +10,7 @@ export type ConnectionOptions = {
 
 export type ConnectionTlsOptions = ConnectionOptions & { certFile: string };
 
-type ColumnBase = string | number | boolean | null | bigint;
+export type ColumnBase = string | number | boolean | null | bigint;
 
 export type SQParam<T = ColumnBase> = T | SQParam<T>[];
 
@@ -18,7 +18,11 @@ export type ColumnBinary = typeof Buffer;
 
 export type ColumnList<T> = T | ColumnList<T>[];
 
-export type Column = ColumnBase | ColumnBinary | ColumnList<ColumnBase>;
+export type Column =
+  | Buffer
+  | ColumnBase
+  | ColumnBinary
+  | ColumnList<ColumnBase>;
 
 export type Row = Column[];
 

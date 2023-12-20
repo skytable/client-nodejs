@@ -110,63 +110,68 @@ function getFirstSplitOffset(buffer: Buffer, split = '\n'): number {
   return -1;
 }
 
-function parseNumberNext<T = number>(
+function parseNumber<T = number>(
   formatFn: (string: string) => T,
   buffer: Buffer,
-): Column[] {
+): [T, Buffer] {
   const offset = getFirstSplitOffset(buffer);
   const val = formatFn(buffer.subarray(0, offset).toString('utf-8'));
 
-  return parseNext(val, buffer.subarray(offset + 1));
+  return [val, buffer.subarray(offset + 1)];
 }
 
-function parseNext(val: any, buffer: Buffer): Column[] {
-  return [val, ...parseSkytableData(buffer)];
-}
+function parseNextBySize(size: number, buffer: Buffer): [Column[], Buffer] {
+  let values = [];
+  let nextBuffer = buffer;
 
-function parseSkytableData(buffer: Buffer): Column[] {
-  if (!buffer.length) {
-    return [];
+  for (let i = 0; i < size; i++) {
+    const [value, remainingBuffer] = parseSingleVal(nextBuffer);
+    values.push(value);
+    nextBuffer = remainingBuffer;
   }
 
+  return [values, nextBuffer];
+}
+
+function parseSingleVal(buffer: Buffer): [Column, Buffer] {
   const type = buffer.readUInt8(0);
   buffer = buffer.subarray(1);
 
   switch (type) {
     case RESPONSES_RESULT.NULL: // Null
-      return parseNext(null, buffer.subarray(0));
+      return [null, buffer.subarray(0)];
     case RESPONSES_RESULT.BOOL: // Bool
-      return parseNext(Boolean(buffer.readUInt8(0)), buffer.subarray(1));
+      return [Boolean(buffer.readUInt8(0)), buffer.subarray(1)];
     case RESPONSES_RESULT.U8INT: // 8-bit Unsigned Integer
-      return parseNumberNext(Number, buffer);
+      return parseNumber(Number, buffer);
     case RESPONSES_RESULT.U16INT: // 16-bit Unsigned Integer
-      return parseNumberNext(Number, buffer);
+      return parseNumber(Number, buffer);
     case RESPONSES_RESULT.U32INT: // 32-bit Unsigned Integer
-      return parseNumberNext(Number, buffer);
+      return parseNumber(Number, buffer);
     case RESPONSES_RESULT.U64INT: // 64-bit Unsigned Integer
-      return parseNumberNext<bigint>(BigInt, buffer);
+      return parseNumber<bigint>(BigInt, buffer);
     case RESPONSES_RESULT.S8INT: // 8-bit Signed Integer
-      return parseNumberNext(Number, buffer);
+      return parseNumber(Number, buffer);
     case RESPONSES_RESULT.S16INT: // 16-bit Signed Integer
-      return parseNumberNext(Number, buffer);
+      return parseNumber(Number, buffer);
     case RESPONSES_RESULT.S32INT: // 32-bit Signed Integer
-      return parseNumberNext(Number, buffer);
+      return parseNumber(Number, buffer);
     case RESPONSES_RESULT.S64INT: // 64-bit Signed Integer
-      return parseNumberNext<bigint>(BigInt, buffer);
+      return parseNumber<bigint>(BigInt, buffer);
     case RESPONSES_RESULT.FLOAT32: // f32
-      return parseNumberNext(Number.parseFloat, buffer);
+      return parseNumber(Number.parseFloat, buffer);
     case RESPONSES_RESULT.FLOAT64: // f64
-      return parseNumberNext(Number.parseFloat, buffer);
+      return parseNumber(Number.parseFloat, buffer);
     case RESPONSES_RESULT.BINARY: {
       //  Binary <size>\n<payload>,
       const sizeOffset = getFirstSplitOffset(buffer);
       const size = Number(buffer.subarray(0, sizeOffset).toString('utf-8'));
       if (size === 0) {
-        return parseNext(Buffer.from([]), buffer.subarray(sizeOffset + 1));
+        return [Buffer.from([]), buffer.subarray(sizeOffset + 1)];
       }
       const [start, end] = [sizeOffset + 1, sizeOffset + 1 + Number(size)];
 
-      return parseNext(buffer.subarray(start, end), buffer.subarray(end));
+      return [buffer.subarray(start, end), buffer.subarray(end)];
     }
     case RESPONSES_RESULT.STRING: {
       // String <size>\n<body>
@@ -175,16 +180,20 @@ function parseSkytableData(buffer: Buffer): Column[] {
       const [start, end] = [sizeOffset + 1, sizeOffset + 1 + Number(size)];
       const str = buffer.subarray(start, end).toString('utf-8');
 
-      return parseNext(str, buffer.subarray(end));
+      return [str, buffer.subarray(end)];
     }
     case RESPONSES_RESULT.LIST: {
       // List <size>\n<body>
       const sizeOffset = getFirstSplitOffset(buffer);
       const size = Number(buffer.subarray(0, sizeOffset).toString('utf-8'));
       if (size === 0) {
-        return parseNext([], buffer.subarray(sizeOffset + 1));
+        return [[], buffer.subarray(sizeOffset + 1)];
       }
-      return [parseSkytableData(buffer.subarray(sizeOffset + 1)) as Column];
+
+      return parseNextBySize(size, buffer.subarray(sizeOffset + 1)) as [
+        Column,
+        Buffer,
+      ];
     }
     default:
       throw new Error(`Unknown data type: ${type}`);
@@ -193,10 +202,12 @@ function parseSkytableData(buffer: Buffer): Column[] {
 
 export function formatRow(buffer: Buffer): Row {
   const offset = getFirstSplitOffset(buffer);
-  // const columnCount = Number(buffer.subarray(0, offset).toString("utf-8"))
+  const columnCount = Number(buffer.subarray(0, offset).toString('utf-8'));
   const dataType = buffer.subarray(offset + 1);
 
-  return parseSkytableData(dataType);
+  const [row] = parseNextBySize(columnCount, dataType);
+
+  return row;
 }
 
 export function formatRows(buffer: Buffer): Rows {
@@ -209,15 +220,17 @@ export function formatRows(buffer: Buffer): Rows {
   const columnCount = Number(
     buffer.subarray(0, columnOffset).toString('utf-8'),
   );
-  const tableData: Column[] = parseSkytableData(buffer.subarray(offset + 1));
+
+  buffer = buffer.subarray(columnOffset + 1);
 
   const result: Rows = [];
+  let nextBuffer = buffer;
 
   for (let i = 0; i < rowCount; i++) {
-    result[i] = [];
-    for (let j = 0; j < columnCount; j++) {
-      result[i][j] = tableData[i * columnCount + j];
-    }
+    const [row, remainingBuffer] = parseNextBySize(columnCount, nextBuffer);
+
+    result[i] = row;
+    nextBuffer = remainingBuffer;
   }
 
   return result;
@@ -239,9 +252,9 @@ export function formatResponse(buffer: Buffer): QueryResult {
       );
     default:
       if (isResponsesResult(type)) {
-        const result = parseSkytableData(buffer);
-        // FIXME to be better
-        return result?.[0];
+        const [val] = parseSingleVal(buffer);
+
+        return val;
       }
       throw new TypeError('unknown response type');
   }
