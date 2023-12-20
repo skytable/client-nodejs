@@ -9,35 +9,16 @@ export function getDBConfig() {
   );
 }
 
-export async function getSpace(db: any, space = 'testspace') {
-  const isNotCreated = await db.query(`CREATE SPACE IF NOT EXISTS ${space}`);
-
-  if (isNotCreated) {
-    await db.query(`CREATE SPACE ${space}`);
-  }
+export async function getSpace(db: any, space = 'testspace'): Promise<[string, Function]> {
+  await db.query(`CREATE SPACE IF NOT EXISTS ${space}`);
 
   await db.query(`USE ${space}`);
 
-  afterAll(async () => {
-    await db.query(`DROP SPACE ALLOW NOT EMPTY ${space}`);
-  })
-
-  return space;
+  return [space, async () => await db.query(`DROP SPACE ALLOW NOT EMPTY ${space}`)];
 }
 
-export async function getTable(db: any) {
-  const space = await getSpace(db, `testTableSpace${Date.now()}`);
-  const isNotCreated = await db.query(`CREATE SPACE IF NOT EXISTS ${space}`);
+export async function getTable(db: any): Promise<[string, Function]> {
+  const [space, drop] = await getSpace(db, `testTable${Date.now()}Space`);
 
-  if (isNotCreated) {
-    await db.query(`CREATE SPACE ${space}`);
-  }
-
-  await db.query(`USE ${space}`);
-
-  afterAll(async () => {
-    await db.query(`DROP SPACE ALLOW NOT EMPTY ${space}`);
-  })
-
-  return `${space}.testTable${Date.now()}`;
+  return [`${space}.testTable${Date.now()}`, drop as Function];
 }

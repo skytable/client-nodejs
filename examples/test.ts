@@ -1,3 +1,4 @@
+import { Row } from './../src/skytable';
 import { Config } from "../src"
 
 async function test() {
@@ -16,14 +17,17 @@ async function test() {
     await db.query('use ' + spaceName)
     await db.query(`CREATE MODEL ${tableName}(username: string, password: string, null email_id: string)`)
     await db.query(
-      `INSERT INTO ${tableName} { username: ?, password: ?, email_id: ? }`,
+      `INSERT INTO ${tableName}(?, ?, ?)`,
       'test',
       'password',
       null
     )
+    const row = await db.query(`SELECT * FROM ${tableName} WHERE username = ?`, 'test')
+    const [username, password, email_id] = (row as Row);
+    console.assert(username === 'test');
+    console.assert(password === 'password');
+    console.assert(email_id == null);
   } finally {
-    // db.query('DROP SPACE ALLOW NOT EMPTY ' + spaceName)
-
     config.disconnect();
   }
 }

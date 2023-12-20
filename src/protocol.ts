@@ -84,14 +84,14 @@ export function encodeParams(parameters: SQParam[]): string {
           if (Buffer.isBuffer(param)) {
             return [
               PARAMS_TYPE.BINARY,
-              Buffer.byteLength(param),
+              param.length,
               '\n',
-              new Uint8Array(Array.from(param)).join(''),
+              param.toString(),
             ].join('');
           }
           // null undefined
           if (param == null) {
-            return 0;
+            return '\x00';
           }
           throw new TypeError(
             `un support type: ${typeof param}, val: ${param}`,
