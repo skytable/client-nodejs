@@ -1,5 +1,5 @@
-import { getDBConfig, getSpace } from './utils'
-import { QueryResult, SQParam } from '../src/skytable'
+import { getDBConfig, getSpace } from './utils';
+import { QueryResult, SQParam } from '../src/skytable';
 
 const testSpace = 'ddltestspace';
 
@@ -8,12 +8,12 @@ describe('DDL', () => {
   const dbConfig = getDBConfig();
 
   beforeAll(async () => {
-    db = await dbConfig.connect()
-  })
+    db = await dbConfig.connect();
+  });
 
   afterAll(async () => {
-    dbConfig.disconnect()
-  })
+    dbConfig.disconnect();
+  });
 
   it('CREATE SPACE', async () => {
     const spaceName = `${testSpace + Date.now()}`;
@@ -22,7 +22,7 @@ describe('DDL', () => {
     } finally {
       await db.query(`DROP SPACE ALLOW NOT EMPTY ${spaceName}`);
     }
-  })
+  });
 
   // FIXME need to fix
   // it('ALTER SPACE', async () => {
@@ -39,4 +39,4 @@ describe('DDL', () => {
   //     await db.query(`DROP SPACE ALLOW NOT EMPTY ${spaceName}`);
   //   }
   // })
-})
+});

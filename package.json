@@ -15,8 +15,8 @@
     "build": "tsc",
     "debugger": "npx tsx examples/test.ts",
     "test": "jest",
-    "formatting": "prettier src --check",
-    "prettier:fix": "prettier src --write"
+    "formatting": "prettier src examples __tests__ --check",
+    "prettier:fix": "prettier src examples __tests__ --write"
   },
   "dependencies": {
     "@types/node": "^20.10.4"
