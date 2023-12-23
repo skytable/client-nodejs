@@ -1,5 +1,4 @@
 import { getDBConfig, getSpace, getTable } from './utils';
-import { QueryResult, SQParam } from '../src/skytable';
 
 const testSpace = 'ddltestspace';
 

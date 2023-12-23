@@ -1,4 +1,4 @@
-import { Row } from './../src/skytable';
+import type { Row } from '../src';
 import { Config } from '../src';
 
 async function test() {

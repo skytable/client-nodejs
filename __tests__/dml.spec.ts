@@ -1,4 +1,4 @@
-import { Rows } from '../src/skytable';
+import type { Rows } from '../src';
 import { getDBConfig, getTable } from './utils';
 
 describe('DML', () => {

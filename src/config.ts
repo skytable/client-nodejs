@@ -3,7 +3,7 @@ import {
   createConnection,
   createConnectionTls,
 } from './connection';
-import { createSkytable } from './skytable';
+import { createDB } from './skytable';
 import { bufferToHandshakeResult, getClientHandshake } from './protocol';
 import type {
   ConnectionOptions as ConnectionTLSOptions,
@@ -81,6 +81,9 @@ export class Config {
     return this.connection;
   }
 
+  /**
+   * connect to Skytable
+   */
   async connect() {
     const connect = await createConnection({
       port: this.port,
@@ -93,10 +96,13 @@ export class Config {
 
     this.connection = connect;
 
-    return createSkytable(connect);
+    return createDB(connect);
   }
 
-  async connectTSL(options: ConnectionTLSOptions) {
+  /**
+   * connect to Skytable
+   */
+  async connectTLS(options: ConnectionTLSOptions) {
     const connect = await createConnectionTls({
       port: this.port,
       host: this.host,
@@ -109,9 +115,12 @@ export class Config {
 
     this.connection = connect;
 
-    return createSkytable(connect);
+    return createDB(connect);
   }
 
+  /**
+   * disconnect from Skytable
+   */
   async disconnect() {
     if (this.connection) {
       this.connection.destroySoon();

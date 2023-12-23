@@ -1,5 +1,6 @@
 import { Config } from './config';
 import type { Column, QueryResult, Row, Rows, SQParam } from './skytable';
+import { Query } from './query';
 
 const PARAMS_TYPE = {
   NULL: '\x00',
@@ -38,67 +39,60 @@ const HANDSHAKE_RESULT = {
   ERROR: 'H01',
 };
 
-function isResponsesResult(type: number): boolean {
-  return Object.values(RESPONSES_RESULT).includes(type);
-}
-
 function isFloat(number: number | string): boolean {
   return Number.isFinite(number) && !Number.isInteger(number);
 }
 
-export function encodeParams(parameters: SQParam[]): string {
-  if (!parameters.length) {
-    return '';
+export function encodeParam(param: SQParam): string {
+  // 5 A binary blob [5<size>\n<payload>]
+  if (Buffer.isBuffer(param)) {
+    return [PARAMS_TYPE.BINARY, param.length, '\n', param.toString()].join('');
   }
 
-  return parameters
-    .map((param) => {
-      switch (typeof param) {
-        case 'string':
-          return [PARAMS_TYPE.STRING, param.length, '\n', param].join('');
-        case 'number':
-          // 2 Unsigned integer 64
-          // 3 Signed integer 64
-          // 4 Float A 64-bit
-          return [
-            isFloat(param)
-              ? PARAMS_TYPE.FLOAT
-              : param < 0
-                ? PARAMS_TYPE.SINT
-                : PARAMS_TYPE.UINT,
-            String(param),
-            '\n',
-          ].join('');
-        case 'bigint':
-          return [
-            param < 0 ? PARAMS_TYPE.SINT : PARAMS_TYPE.UINT,
-            String(param),
-            '\n',
-          ].join('');
-        case 'boolean':
-          return [PARAMS_TYPE.BOOLEAN, Number(param) === 1 ? '\x01' : 0].join(
-            '',
-          );
-        default:
-          // 5 A binary blob [5<size>\n<payload>]
-          if (Buffer.isBuffer(param)) {
-            return [
-              PARAMS_TYPE.BINARY,
-              param.length,
-              '\n',
-              param.toString(),
-            ].join('');
-          }
-          // null undefined
-          if (param == null) {
-            return '\x00';
-          }
-          throw new TypeError(
-            `un support type: ${typeof param}, val: ${param}`,
-          );
-      }
-    })
-    .join('');
+  // null undefined
+  if (param == null) {
+    return '\x00';
+  }
+
+  switch (typeof param) {
+    case 'string':
+      return [PARAMS_TYPE.STRING, param.length, '\n', param].join('');
+    case 'number':
+      // 2 Unsigned integer 64
+      // 3 Signed integer 64
+      // 4 Float A 64-bit
+      return [
+        isFloat(param)
+          ? PARAMS_TYPE.FLOAT
+          : param < 0
+            ? PARAMS_TYPE.SINT
+            : PARAMS_TYPE.UINT,
+        String(param),
+        '\n',
+      ].join('');
+    case 'bigint':
+      return [
+        param < 0 ? PARAMS_TYPE.SINT : PARAMS_TYPE.UINT,
+        String(param),
+        '\n',
+      ].join('');
+    case 'boolean':
+      return [PARAMS_TYPE.BOOLEAN, Number(param) === 1 ? '\x01' : 0].join('');
+    default:
+      throw new TypeError(`un support type: ${typeof param}, val: ${param}`);
+  }
+}
+
+export function encodeParams(parameters: SQParam[]): string {
+  return parameters.map(encodeParam).join('');
+}
+
+export function encodeQuery(query: Query): Buffer {
+  const dataframe = `${query.getQuery()}${query.getParams().join('')}`;
+  const data = [query.getQueryLength(), '\n', dataframe];
+  const requestData = ['S', data.join('').length, '\n', ...data];
+
+  return Buffer.from(requestData.join(''), 'utf-8');
 }
 
 function getFirstSplitOffset(buffer: Buffer, split = '\n'): number {
@@ -251,13 +245,12 @@ export function formatResponse(buffer: Buffer): QueryResult {
         `response error code: ${buffer.subarray(1, 2).readInt8()}`,
       );
     default:
-      if (isResponsesResult(type)) {
-        const [val] = parseSingleVal(buffer);
-
-        return val;
-      }
-      throw new TypeError('unknown response type');
+      break;
   }
+
+  const [val] = parseSingleVal(buffer);
+
+  return val;
 }
 
 export function getClientHandshake(config: Config): string {

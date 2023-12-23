@@ -1,14 +1,8 @@
 import { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import { connectionWrite } from './connection';
-import { encodeParams, formatResponse } from './protocol';
-
-export type ConnectionOptions = {
-  port: number;
-  hostname: string;
-};
-
-export type ConnectionTlsOptions = ConnectionOptions & { certFile: string };
+import { encodeQuery, formatResponse } from './protocol';
+import { Query } from './query';
 
 export type ColumnBase = string | number | boolean | null | bigint;
 
@@ -30,15 +24,22 @@ export type Rows = Row[];
 
 export type QueryResult = Column | Row | Rows;
 
-export function createSkytable(connection: Socket | TLSSocket) {
+/**
+ * create a db instance
+ * @param connection The connection to Skytable
+ * @returns { query: (query: string | Query, ...params: SQParam[]) => Promise<QueryResult> }
+ */
+export function createDB(connection: Socket | TLSSocket) {
   const query = async (
-    query: string,
+    query: string | Query,
     ...params: SQParam[]
   ): Promise<QueryResult> => {
-    const dataframe = `${query}${encodeParams(params)}`;
-    const data = [query.length, '\n', dataframe];
-    const requestData = ['S', data.join('').length, '\n', ...data];
-    const buffer = Buffer.from(requestData.join(''), 'utf-8');
+    const queryInstance = typeof query === 'string' ? new Query(query) : query;
+    params.forEach((param) => {
+      queryInstance.pushParam(param);
+    });
+
+    const buffer = encodeQuery(queryInstance);
 
     const res = await connectionWrite(connection, buffer);
 
