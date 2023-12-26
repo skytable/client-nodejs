@@ -1,8 +1,15 @@
 {
   "extends": "./tsconfig.json",
 	"compilerOptions": {
-		"module": "ES6",
+    "target": "ES2018",
+		"module": "ES2020",
     "rootDir": "./src",
     "outDir": "./dist/esm",
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "Node",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "composite": true
 	},
 }
