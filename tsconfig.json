@@ -112,7 +112,7 @@
     "skipLibCheck": true,
     /* Skip type checking all .d.ts files. */
     "declaration": true,
-    "outDir": "./dist",
+    "outDir": "./dist/cjs",
     "rootDir": "./src",
     "baseUrl": ".",
     "paths": {

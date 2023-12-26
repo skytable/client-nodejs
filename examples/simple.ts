@@ -1,15 +1,14 @@
-import type { Row } from '../src';
-import { Config } from '../src';
+import Config, { type Row } from '../src';
 
-async function test() {
+async function main() {
   const config = new Config('root', 'admin123456123456', '127.0.0.1', 2003);
-  const spaceName = `testTable${Date.now()}Space`;
-  const tableName = `${spaceName}.testTable`;
+  const spaceName = `testSpace`;
+  const tableName = `${spaceName}.users`;
   const db = await config.connect();
 
   try {
-    await db.query('create space ' + spaceName);
-    await db.query('use ' + spaceName);
+    await db.query(`create space IF NOT EXISTS ${spaceName}`);
+    await db.query(`use ${spaceName}`);
     await db.query(
       `CREATE MODEL ${tableName}(username: string, password: string, null email_id: string)`,
     );
@@ -27,9 +26,11 @@ async function test() {
     console.assert(username === 'test');
     console.assert(password === 'password');
     console.assert(email_id == null);
+  } catch (e) {
+    console.error(e);
   } finally {
     config.disconnect();
   }
 }
 
-test();
+main();

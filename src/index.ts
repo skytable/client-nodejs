@@ -1,4 +1,4 @@
-export { Config } from './config';
+export { Config as default } from './config';
 
 export * from './skytable';
 

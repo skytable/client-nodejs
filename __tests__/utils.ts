@@ -1,4 +1,4 @@
-import { Config } from '../src';
+import Config from '../src';
 
 export function getDBConfig() {
   return new Config('root', 'admin123456123456', '127.0.0.1', 2003);
