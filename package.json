@@ -1,6 +1,6 @@
 {
-  "name": "skytable",
-  "version": "1.0.0",
+  "name": "skytable-node",
+  "version": "0.1.2",
   "main": "dist/cjs/index.js",
   "types": "dist/cjs/index.d.ts",
   "module": "dist/esm/index.mjs",
@@ -13,6 +13,12 @@
   "bugs": {
     "url": "https://github.com/skytable/client-nodejs/issues"
   },
+  "files": [
+    "dist/",
+    "package.json",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "yarn build:cjs && yarn build:esm",
     "build:cjs": "tsc",
