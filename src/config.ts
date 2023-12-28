@@ -85,37 +85,29 @@ export class Config {
    * connect to Skytable
    */
   async connect() {
-    const connect = await createConnection({
+    const socket = await createConnection({
       port: this.port,
       host: this.host,
     });
-
-    const data = await connectionWrite(connect, getClientHandshake(this));
-
+    const data = await connectionWrite(socket, getClientHandshake(this));
     await bufferToHandshakeResult(data);
-
-    this.connection = connect;
-
-    return createDB(connect);
+    this.connection = socket;
+    return createDB(socket);
   }
 
   /**
    * connect to Skytable
    */
   async connectTLS(options: ConnectionTLSOptions) {
-    const connect = await createConnectionTls({
+    const socket = await createConnectionTls({
       port: this.port,
       host: this.host,
       ...options,
     });
-
-    const data = await connectionWrite(connect, getClientHandshake(this));
-
+    const data = await connectionWrite(socket, getClientHandshake(this));
     await bufferToHandshakeResult(data);
-
-    this.connection = connect;
-
-    return createDB(connect);
+    this.connection = socket;
+    return createDB(socket);
   }
 
   /**

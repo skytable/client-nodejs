@@ -11,7 +11,6 @@ export function createConnection(options: NetConnectOpts): Promise<Socket> {
     conn.once('connect', () => {
       resolve(conn);
     });
-
     conn.once('error', (error) => {
       console.error(`createConnection error: ${error.message}`);
       reject(error);
@@ -27,7 +26,6 @@ export function createConnectionTls(
     conn.once('connect', () => {
       resolve(conn);
     });
-
     conn.once('error', (error) => {
       console.error(`createConnection error: ${error.message}`);
       reject(error);
@@ -45,7 +43,6 @@ export function connectionWrite(
         reject(writeError);
         return;
       }
-
       connect.once('data', (data) => {
         resolve(data);
       });

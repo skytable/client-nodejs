@@ -48,12 +48,10 @@ export function encodeParam(param: SQParam): string {
   if (Buffer.isBuffer(param)) {
     return [PARAMS_TYPE.BINARY, param.length, '\n', param.toString()].join('');
   }
-
   // null undefined
   if (param == null) {
     return '\x00';
   }
-
   switch (typeof param) {
     case 'string':
       return [PARAMS_TYPE.STRING, param.length, '\n', param].join('');
@@ -91,7 +89,6 @@ export function encodeQuery(query: Query): Buffer {
   const dataframe = `${query.getQuery()}${query.getParams().join('')}`;
   const data = [query.getQueryLength(), '\n', dataframe];
   const requestData = ['S', data.join('').length, '\n', ...data];
-
   return Buffer.from(requestData.join(''), 'utf-8');
 }
 
@@ -110,27 +107,23 @@ function parseNumber<T = number>(
 ): [T, Buffer] {
   const offset = getFirstSplitOffset(buffer);
   const val = formatFn(buffer.subarray(0, offset).toString('utf-8'));
-
   return [val, buffer.subarray(offset + 1)];
 }
 
 function parseNextBySize(size: number, buffer: Buffer): [Column[], Buffer] {
   let values = [];
   let nextBuffer = buffer;
-
   for (let i = 0; i < size; i++) {
-    const [value, remainingBuffer] = parseSingleVal(nextBuffer);
+    const [value, remainingBuffer] = decodeValue(nextBuffer);
     values.push(value);
     nextBuffer = remainingBuffer;
   }
-
   return [values, nextBuffer];
 }
 
-function parseSingleVal(buffer: Buffer): [Column, Buffer] {
+function decodeValue(buffer: Buffer): [Column, Buffer] {
   const type = buffer.readUInt8(0);
   buffer = buffer.subarray(1);
-
   switch (type) {
     case RESPONSES_RESULT.NULL: // Null
       return [null, buffer.subarray(0)];
@@ -164,7 +157,6 @@ function parseSingleVal(buffer: Buffer): [Column, Buffer] {
         return [Buffer.from([]), buffer.subarray(sizeOffset + 1)];
       }
       const [start, end] = [sizeOffset + 1, sizeOffset + 1 + Number(size)];
-
       return [buffer.subarray(start, end), buffer.subarray(end)];
     }
     case RESPONSES_RESULT.STRING: {
@@ -173,7 +165,6 @@ function parseSingleVal(buffer: Buffer): [Column, Buffer] {
       const size = Number(buffer.subarray(0, sizeOffset).toString('utf-8'));
       const [start, end] = [sizeOffset + 1, sizeOffset + 1 + Number(size)];
       const str = buffer.subarray(start, end).toString('utf-8');
-
       return [str, buffer.subarray(end)];
     }
     case RESPONSES_RESULT.LIST: {
@@ -183,7 +174,6 @@ function parseSingleVal(buffer: Buffer): [Column, Buffer] {
       if (size === 0) {
         return [[], buffer.subarray(sizeOffset + 1)];
       }
-
       return parseNextBySize(size, buffer.subarray(sizeOffset + 1)) as [
         Column,
         Buffer,
@@ -194,52 +184,42 @@ function parseSingleVal(buffer: Buffer): [Column, Buffer] {
   }
 }
 
-export function formatRow(buffer: Buffer): Row {
+export function decodeRow(buffer: Buffer): Row {
   const offset = getFirstSplitOffset(buffer);
   const columnCount = Number(buffer.subarray(0, offset).toString('utf-8'));
   const dataType = buffer.subarray(offset + 1);
-
   const [row] = parseNextBySize(columnCount, dataType);
-
   return row;
 }
 
-export function formatRows(buffer: Buffer): Rows {
+export function decodeRows(buffer: Buffer): Rows {
   const offset = getFirstSplitOffset(buffer);
   const rowCount = Number(buffer.subarray(0, offset).toString('utf-8'));
-
   buffer = buffer.subarray(offset + 1);
-
   const columnOffset = getFirstSplitOffset(buffer);
   const columnCount = Number(
     buffer.subarray(0, columnOffset).toString('utf-8'),
   );
-
   buffer = buffer.subarray(columnOffset + 1);
-
   const result: Rows = [];
   let nextBuffer = buffer;
-
   for (let i = 0; i < rowCount; i++) {
     const [row, remainingBuffer] = parseNextBySize(columnCount, nextBuffer);
-
     result[i] = row;
     nextBuffer = remainingBuffer;
   }
-
   return result;
 }
 
-export function formatResponse(buffer: Buffer): QueryResult {
+export function decodeResponse(buffer: Buffer): QueryResult {
   const type = buffer.readInt8(0);
-
   switch (type) {
     case RESPONSES_RESULT.EMPTY:
       return null;
     case RESPONSES_RESULT.ROW:
-      return formatRow(buffer.subarray(1));
+      return decodeRow(buffer.subarray(1));
     case RESPONSES_RESULT.MULTIROW:
-      return formatRows(buffer.subarray(1));
+      return decodeRows(buffer.subarray(1));
     case RESPONSES_RESULT.ERROR:
       throw new Error(
         `response error code: ${buffer.subarray(1, 2).readInt8()}`,
@@ -247,16 +227,13 @@ export function formatResponse(buffer: Buffer): QueryResult {
     default:
       break;
   }
-
-  const [val] = parseSingleVal(buffer);
-
+  const [val] = decodeValue(buffer);
   return val;
 }
 
 export function getClientHandshake(config: Config): string {
   const username = config.getUsername();
   const password = config.getPassword();
-
   return [
     'H\x00\x00\x00\x00\x00',
     username.length,
@@ -272,11 +249,9 @@ export function bufferToHandshakeResult(buffer: Buffer): Promise<void> {
   return new Promise((resolve, reject) => {
     const [h, c1, c2, msg] = Array.from(buffer.toJSON().data);
     const code = [String.fromCharCode(h), c1, c2].join('');
-
     if (code === HANDSHAKE_RESULT.SUCCESS) {
       return resolve();
     }
-
     reject(new Error(`handshake error code ${code}, msg: ${msg}`));
   });
 }
