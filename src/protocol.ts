@@ -11,7 +11,7 @@ export const PARAMS_TYPE = {
   STRING: new Uint8Array([0x06]),
 };
 
-export const NEWLINE = new Uint8Array([0x0A]);
+export const NEWLINE = new Uint8Array([0x0a]);
 const STATICALLY_ENCODED_BOOL_FALSE = new Uint8Array([0x00]);
 const STATICALLY_ENCODED_BOOL_TRUE = new Uint8Array([0x01]);
 
