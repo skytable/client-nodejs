@@ -1,16 +1,152 @@
 import { Config } from './config';
-import type { Column, QueryResult, Row, Rows, SQParam } from './skytable';
-import { Query } from './query';
+import { Parameter, Query, isSQParam } from './query';
+import { isFloat } from './utils';
 
-const PARAMS_TYPE = {
-  NULL: '\x00',
-  BOOLEAN: '\x01',
-  UINT: '\x02',
-  SINT: '\x03',
-  FLOAT: '\x04',
-  BINARY: '\x05',
-  STRING: '\x06',
+/*
+  Handshake
+*/
+
+const HANDSHAKE_RESULT = {
+  SUCCESS: 'H00',
+  ERROR: 'H01',
 };
+
+export function handshakeEncode(config: Config): string {
+  const username = config.getUsername();
+  const password = config.getPassword();
+  return [
+    'H\x00\x00\x00\x00\x00',
+    username.length,
+    '\n',
+    password.length,
+    '\n',
+    username,
+    password,
+  ].join('');
+}
+
+export function handshakeDecode(buffer: Buffer): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const [h, c1, c2, msg] = Array.from(buffer.toJSON().data);
+    const code = [String.fromCharCode(h), c1, c2].join('');
+    if (code === HANDSHAKE_RESULT.SUCCESS) {
+      return resolve();
+    }
+    reject(new Error(`handshake error code ${code}, msg: ${msg}`));
+  });
+}
+
+/*
+  Query implementations
+*/
+
+export const NEWLINE = new Uint8Array([0x0a]);
+const STATICALLY_ENCODED_BOOL_FALSE = new Uint8Array([0x00]);
+const STATICALLY_ENCODED_BOOL_TRUE = new Uint8Array([0x01]);
+
+export const PARAMS_TYPE = {
+  NULL: new Uint8Array([0x00]),
+  BOOLEAN: new Uint8Array([0x01]),
+  UINT: new Uint8Array([0x02]),
+  SINT: new Uint8Array([0x03]),
+  FLOAT: new Uint8Array([0x04]),
+  BINARY: new Uint8Array([0x05]),
+  STRING: new Uint8Array([0x06]),
+};
+
+export function queryEncodeParams(query: Query, param: Parameter): void {
+  switch (typeof param) {
+    case 'boolean': {
+      query
+        ._getParamBuffer()
+        .push(
+          Buffer.concat([
+            PARAMS_TYPE.BOOLEAN,
+            param
+              ? STATICALLY_ENCODED_BOOL_TRUE
+              : STATICALLY_ENCODED_BOOL_FALSE,
+          ]),
+        );
+      break;
+    }
+    case 'number': {
+      query
+        ._getParamBuffer()
+        .push(
+          Buffer.concat([
+            isFloat(param)
+              ? PARAMS_TYPE.FLOAT
+              : param < 0
+                ? PARAMS_TYPE.SINT
+                : PARAMS_TYPE.UINT,
+            Buffer.from(param.toString()),
+            NEWLINE,
+          ]),
+        );
+      break;
+    }
+    case 'bigint': {
+      query
+        ._getParamBuffer()
+        .push(
+          Buffer.concat([
+            param < 0 ? PARAMS_TYPE.SINT : PARAMS_TYPE.UINT,
+            Buffer.from(param.toString()),
+            NEWLINE,
+          ]),
+        );
+      break;
+    }
+    case 'string': {
+      query
+        ._getParamBuffer()
+        .push(Buffer.concat([PARAMS_TYPE.STRING, Buffer.from(param), NEWLINE]));
+      break;
+    }
+    case 'object': {
+      if (param === null) {
+        query._getParamBuffer().push(PARAMS_TYPE.NULL);
+        break;
+      } else if (param instanceof Buffer) {
+        query
+          ._getParamBuffer()
+          .push(
+            Buffer.concat([
+              PARAMS_TYPE.BINARY,
+              Buffer.from(param.length.toString()),
+              NEWLINE,
+              param,
+            ]),
+          );
+        break;
+      } else if (isSQParam(param)) {
+        return query._incrQueryCountBy(
+          param.encodeUnsafe(query._getParamBuffer()),
+        );
+      }
+    }
+    default:
+      throw new TypeError(`unsupported type: ${typeof param}, val: ${param}`);
+  }
+  query._incrQueryCountBy(1);
+}
+
+/*
+  response implementations
+*/
+
+export type SimpleValue = null | boolean | number | bigint | Buffer | string;
+export type Value = SimpleValue | Value[];
+export type Row = Value[];
+export type Rows = Row[];
+export type Response = Value | Row | Rows | Empty;
+
+/**
+ * An empty response, usually indicative of a succesful action (much like HTTP 200)
+ */
+export class Empty {
+  constructor() {}
+}
 
 const RESPONSES_RESULT = {
   NULL: 0,
@@ -34,64 +170,6 @@ const RESPONSES_RESULT = {
   MULTIROW: 0x13,
 };
 
-const HANDSHAKE_RESULT = {
-  SUCCESS: 'H00',
-  ERROR: 'H01',
-};
-
-function isFloat(number: number | string): boolean {
-  return Number.isFinite(number) && !Number.isInteger(number);
-}
-
-export function encodeParam(param: SQParam): string {
-  // 5 A binary blob [5<size>\n<payload>]
-  if (Buffer.isBuffer(param)) {
-    return [PARAMS_TYPE.BINARY, param.length, '\n', param.toString()].join('');
-  }
-  // null undefined
-  if (param == null) {
-    return '\x00';
-  }
-  switch (typeof param) {
-    case 'string':
-      return [PARAMS_TYPE.STRING, param.length, '\n', param].join('');
-    case 'number':
-      // 2 Unsigned integer 64
-      // 3 Signed integer 64
-      // 4 Float A 64-bit
-      return [
-        isFloat(param)
-          ? PARAMS_TYPE.FLOAT
-          : param < 0
-            ? PARAMS_TYPE.SINT
-            : PARAMS_TYPE.UINT,
-        String(param),
-        '\n',
-      ].join('');
-    case 'bigint':
-      return [
-        param < 0 ? PARAMS_TYPE.SINT : PARAMS_TYPE.UINT,
-        String(param),
-        '\n',
-      ].join('');
-    case 'boolean':
-      return [PARAMS_TYPE.BOOLEAN, Number(param) === 1 ? '\x01' : 0].join('');
-    default:
-      throw new TypeError(`un support type: ${typeof param}, val: ${param}`);
-  }
-}
-
-export function encodeParams(parameters: SQParam[]): string {
-  return parameters.map(encodeParam).join('');
-}
-
-export function encodeQuery(query: Query): Buffer {
-  const dataframe = `${query.getQuery()}${query.getParams().join('')}`;
-  const data = [query.getQueryLength(), '\n', dataframe];
-  const requestData = ['S', data.join('').length, '\n', ...data];
-  return Buffer.from(requestData.join(''), 'utf-8');
-}
-
 function getFirstSplitOffset(buffer: Buffer, split = '\n'): number {
   for (let i = 0; i < buffer.length; i++) {
     if (buffer[i] === split.charCodeAt(0)) {
@@ -110,7 +188,7 @@ function parseNumber<T = number>(
   return [val, buffer.subarray(offset + 1)];
 }
 
-function parseNextBySize(size: number, buffer: Buffer): [Column[], Buffer] {
+function parseNextBySize(size: number, buffer: Buffer): [Value[], Buffer] {
   let values = [];
   let nextBuffer = buffer;
   for (let i = 0; i < size; i++) {
@@ -121,7 +199,7 @@ function parseNextBySize(size: number, buffer: Buffer): [Column[], Buffer] {
   return [values, nextBuffer];
 }
 
-function decodeValue(buffer: Buffer): [Column, Buffer] {
+function decodeValue(buffer: Buffer): [Value, Buffer] {
   const type = buffer.readUInt8(0);
   buffer = buffer.subarray(1);
   switch (type) {
@@ -175,7 +253,7 @@ function decodeValue(buffer: Buffer): [Column, Buffer] {
         return [[], buffer.subarray(sizeOffset + 1)];
       }
       return parseNextBySize(size, buffer.subarray(sizeOffset + 1)) as [
-        Column,
+        Value,
         Buffer,
       ];
     }
@@ -184,7 +262,7 @@ function decodeValue(buffer: Buffer): [Column, Buffer] {
   }
 }
 
-export function decodeRow(buffer: Buffer): Row {
+function decodeRow(buffer: Buffer): Row {
   const offset = getFirstSplitOffset(buffer);
   const columnCount = Number(buffer.subarray(0, offset).toString('utf-8'));
   const dataType = buffer.subarray(offset + 1);
@@ -192,7 +270,7 @@ export function decodeRow(buffer: Buffer): Row {
   return row;
 }
 
-export function decodeRows(buffer: Buffer): Rows {
+function decodeRows(buffer: Buffer): Rows {
   const offset = getFirstSplitOffset(buffer);
   const rowCount = Number(buffer.subarray(0, offset).toString('utf-8'));
   buffer = buffer.subarray(offset + 1);
@@ -211,11 +289,11 @@ export function decodeRows(buffer: Buffer): Rows {
   return result;
 }
 
-export function decodeResponse(buffer: Buffer): QueryResult {
+export function responseDecode(buffer: Buffer): Response {
   const type = buffer.readInt8(0);
   switch (type) {
     case RESPONSES_RESULT.EMPTY:
-      return null;
+      return new Empty();
     case RESPONSES_RESULT.ROW:
       return decodeRow(buffer.subarray(1));
     case RESPONSES_RESULT.MULTIROW:
@@ -229,29 +307,4 @@ export function decodeResponse(buffer: Buffer): QueryResult {
   }
   const [val] = decodeValue(buffer);
   return val;
-}
-
-export function getClientHandshake(config: Config): string {
-  const username = config.getUsername();
-  const password = config.getPassword();
-  return [
-    'H\x00\x00\x00\x00\x00',
-    username.length,
-    '\n',
-    password.length,
-    '\n',
-    username,
-    password,
-  ].join('');
-}
-
-export function bufferToHandshakeResult(buffer: Buffer): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const [h, c1, c2, msg] = Array.from(buffer.toJSON().data);
-    const code = [String.fromCharCode(h), c1, c2].join('');
-    if (code === HANDSHAKE_RESULT.SUCCESS) {
-      return resolve();
-    }
-    reject(new Error(`handshake error code ${code}, msg: ${msg}`));
-  });
 }

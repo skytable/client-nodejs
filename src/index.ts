@@ -1,4 +1,4 @@
-export { Config as default } from './config';
-export * from './skytable';
-export * from './protocol';
-export * from './query';
+export { Query, Parameter, SignedInt } from './query';
+export { Connection } from './connection';
+export { Config } from './config';
+export { SimpleValue, Value, Row, Rows, Empty } from './protocol';

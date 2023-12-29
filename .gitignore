@@ -2,3 +2,4 @@ node_modules
 .devcontainer
 dist
 .vscode
+.rollup_cache
