@@ -1,4 +1,8 @@
-import { encodeParams as encodeParam, NEWLINE, PARAMS_TYPE } from './protocol';
+import {
+  queryEncodeParams as encodeParam,
+  NEWLINE,
+  PARAMS_TYPE,
+} from './protocol';
 import { isFloat } from './utils';
 
 /**
@@ -42,7 +46,7 @@ export class Query {
    * Get the base query payload
    * @returns base query
    */
-  public getQuery(): String {
+  public getQuery(): string {
     return this.query;
   }
   /**
@@ -64,7 +68,7 @@ export class Query {
    *
    * @returns returns the parameter buffer
    */
-  getParamBuffer(): Uint8Array[] {
+  _getParamBuffer(): Uint8Array[] {
     return this.params;
   }
   /**
@@ -72,7 +76,7 @@ export class Query {
    *
    * @param by newly added param count
    */
-  incrQueryCountBy(by: number): void {
+  _incrQueryCountBy(by: number): void {
     this.param_cnt += by;
   }
 }

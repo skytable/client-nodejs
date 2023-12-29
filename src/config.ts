@@ -1,3 +1,6 @@
+import { ConnectionOptions } from 'tls';
+import { Connection, createTcp, createTls } from './connection';
+
 export class Config {
   private username: string;
   private password: string;
@@ -44,5 +47,28 @@ export class Config {
    */
   getPort(): number {
     return this.port;
+  }
+
+  /**
+   * Get a TCP connection to the database
+   *
+   * @returns a Skyhash/TCP connection
+   */
+  async connect(): Promise<Connection> {
+    const con = await createTcp(this);
+    await con._handshake(this);
+    return con;
+  }
+
+  /**
+   * Get a TLS connection to the database
+   *
+   * @param tlsOpts TLS options
+   * @returns a Skyhash/TLS connection
+   */
+  async connectTls(tlsOpts: ConnectionOptions): Promise<Connection> {
+    const con = await createTls(this, tlsOpts);
+    await con._handshake(this);
+    return con;
   }
 }
