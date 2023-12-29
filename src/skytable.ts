@@ -1,6 +1,6 @@
 import { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
-import { connectionWrite } from './connection';
+import { connectionWriteQuery } from './connection';
 import { encodeQuery, decodeResponse } from './protocol';
 import { Query } from './query';
 
@@ -32,8 +32,8 @@ export function createDB(connection: Socket | TLSSocket) {
       queryInstance.pushParam(param);
     });
     const buffer = encodeQuery(queryInstance);
-    const res = await connectionWrite(connection, buffer);
-    return decodeResponse(res);
+    console.log(queryInstance.getQuery(), '==========')
+    return await connectionWriteQuery(connection, buffer);
   };
   return {
     query,

@@ -1,5 +1,5 @@
 import {
-  connectionWrite,
+  connectionWriteHandleShake,
   createConnection,
   createConnectionTls,
 } from './connection';
@@ -89,7 +89,7 @@ export class Config {
       port: this.port,
       host: this.host,
     });
-    const data = await connectionWrite(socket, getClientHandshake(this));
+    const data = await connectionWriteHandleShake(socket, getClientHandshake(this));
     await bufferToHandshakeResult(data);
     this.connection = socket;
     return createDB(socket);
@@ -104,7 +104,7 @@ export class Config {
       host: this.host,
       ...options,
     });
-    const data = await connectionWrite(socket, getClientHandshake(this));
+    const data = await connectionWriteHandleShake(socket, getClientHandshake(this));
     await bufferToHandshakeResult(data);
     this.connection = socket;
     return createDB(socket);
