@@ -6,7 +6,6 @@ async function main() {
   const tableName = `${spaceName}.users${Date.now()}`;
   const db = await config.connect();
 
-  console.log('db ', db)
   try {
     await db.query(`create space IF NOT EXISTS ${spaceName}`);
     await db.query(`use ${spaceName}`);
@@ -23,7 +22,7 @@ async function main() {
       `SELECT * FROM ${tableName} WHERE username = ?`,
       'test',
     );
-    console.log(row, '=========');
+    console.log('username, password, email_id', row);
     const [username, password, email_id] = row as Row;
     console.assert(username === 'test');
     console.assert(password === 'password');

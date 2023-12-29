@@ -21,13 +21,13 @@ const RESPONSES_RESULT = {
 };
 
 // TODO error for ROW | LIST | ROWS
-export function decode(buffer: Buffer, resultType?: number) {
-  let sourceBuffer = resultType ? buffer : buffer.subarray(1);
-  resultType = resultType || buffer.readInt8(0);
+export function decode(buffer: Buffer) {
+  const resultType = buffer.readInt8(0);
+  let sourceBuffer = buffer.subarray(1);
+  let cursor = 0;
 
   // @ts-ignore
   let value = undefined;
-  let cursor = 0;
   let isPending = true;
 
   const state = {
@@ -62,21 +62,16 @@ export function decode(buffer: Buffer, resultType?: number) {
       return;
     }
     const val = formatFn(sourceBuffer.subarray(cursor, offset).toString('utf-8'));
-
-    setValue(val, offset - cursor)
+console.log(sourceBuffer, sourceBuffer.subarray(cursor, offset), cursor, offset + 1, 'llllllllllllllll', val)
+    setValue(val, offset - cursor + 1)
   }
 
-
-
   const decodeValue = () => {
-    const type = buffer.readUInt8(cursor);
-    cursor += 1;
-
-    switch (type) {
+    switch (resultType) {
       case RESPONSES_RESULT.NULL: // Null
         return setValue(null);
       case RESPONSES_RESULT.BOOL: // Bool
-        return setValue(Boolean(buffer.readUInt8(0)), 1);
+        return setValue(Boolean(sourceBuffer.readUInt8(cursor)), 1);
       case RESPONSES_RESULT.U8INT: // 8-bit Unsigned Integer
         return parseNumber(Number);
       case RESPONSES_RESULT.U16INT: // 16-bit Unsigned Integer
@@ -105,17 +100,14 @@ export function decode(buffer: Buffer, resultType?: number) {
         }
 
         const size = Number(sourceBuffer.subarray(cursor, sizeOffset).toString('utf-8'));
-        if (size === 0) {
-          setValue(Buffer.from([]), sizeOffset + 1 - cursor);
-        }
-
-        const [start, end] = [sizeOffset + 1, sizeOffset + 1 + Number(size)];
+        const [start, end] = [cursor, sizeOffset + Number(size)];
 
         if (end > sourceBuffer.length) {
           isPending = true;
           return;
         }
         setValue(sourceBuffer.subarray(start, end), end - cursor)
+        break;
       }
       case RESPONSES_RESULT.STRING: {
         // String <size>\n<body>
@@ -124,9 +116,9 @@ export function decode(buffer: Buffer, resultType?: number) {
         if (sizeOffset === -1) {
           return;
         }
-
         const size = Number(sourceBuffer.subarray(cursor, sizeOffset).toString('utf-8'));
-        const [start, end] = [sizeOffset + 1, sizeOffset + 1 + Number(size)];
+        const [start, end] = [sizeOffset + 2, sizeOffset + 2 + Number(size)];
+        
 
         if (end > sourceBuffer.length) {
           isPending = true;
@@ -135,6 +127,8 @@ export function decode(buffer: Buffer, resultType?: number) {
 
         const str = buffer.subarray(start, end).toString('utf-8');
         setValue(str, end - cursor);
+
+        break;
       }
       case RESPONSES_RESULT.LIST: {
         // List <size>\n<body>
@@ -168,9 +162,10 @@ export function decode(buffer: Buffer, resultType?: number) {
         }
 
         setValue(values)
+        break;
       }
       default:
-        throw new Error(`Unknown data type: ${type}`);
+        throw new Error(`Unknown data type: ${resultType}`);
     }
   }
 
@@ -187,23 +182,19 @@ export function decode(buffer: Buffer, resultType?: number) {
             return;
           }
 
-          const isHistory = Boolean(state.row.size);
           const columnCount = state.row.size ? state.row.size : Number(sourceBuffer.subarray(cursor, offset).toString('utf-8'));
           state.row.size = columnCount;
+
+          cursor = offset + 1;
           if (columnCount === 0) {
-            return setValue([], offset + 1 - cursor);
+            return setValue([]);
           }
 
-          if (!isHistory) {
-            cursor = offset + 1;
-          }
-          
           // @ts-ignore
           let row = (value || []);
           const start = row.length;
           for (let i = start; i < columnCount; i++) {
-            console.log(isHistory, row, columnCount, sourceBuffer, cursor, sourceBuffer.subarray(cursor))
-            const { value: innerValue, isPending: innerPending, cursor: innerCursor } = decode(sourceBuffer.subarray(cursor), resultType);
+            const { value: innerValue, isPending: innerPending, cursor: innerCursor } = decode(sourceBuffer.subarray(cursor));
             if (innerPending) {
               break;
             }
@@ -243,7 +234,7 @@ export function decode(buffer: Buffer, resultType?: number) {
           return;
         }
         const columnCount = state.rows.comSize ? state.rows.comSize : Number(
-          buffer.subarray(cursor, columnOffset).toString('utf-8'),
+          sourceBuffer.subarray(cursor, columnOffset).toString('utf-8'),
         );
         state.rows.comSize = columnCount;
 
@@ -253,7 +244,7 @@ export function decode(buffer: Buffer, resultType?: number) {
 
         // @ts-ignore
         const rows = value || [];
-        let nextBuffer = buffer;
+        let nextBuffer = sourceBuffer;
         for (let i = rows.length; i < rowCount; i++) {
           const row = rows[i];
           const count = row?.length || 0;
@@ -274,7 +265,7 @@ export function decode(buffer: Buffer, resultType?: number) {
         break;
       case RESPONSES_RESULT.ERROR:
         throw new Error(
-          `response error code: ${buffer.subarray(1, 2).readInt8()}`,
+          `response error code: ${sourceBuffer.subarray(1, 2).readInt8()}`,
         );
       default:
         decodeValue();
