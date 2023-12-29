@@ -1,16 +1,34 @@
-# Skytable NodeJS Driver
+# `skytable-node`: Skytable driver for NodeJS
 
-This is the skeleton template repository for Skytable's NodeJS driver. You can [track the implementation here](https://github.com/skytable/skytable/issues/324)!
+## Getting started
 
-Tasks:
-- [ ] Implement a basic Skytable client driver for NodeJS
-- [ ] Functionality:
-  - [ ] Implement the full Skyhash protocol
-  - [ ] Be able to send and receive queries and decode them ergonomically (into appropriate objects and/or types)
-  - [ ] Should have a way to use TLS
+```shell
+yarn add skytable-node
+```
 
-> For contributors: You might find the [Rust client driver](https://github.com/skytable/client-rust) to be a good reference.
-> We're here to help! Please jump into our [Discord Community](https://discord.gg/QptWFdx); we're here to mentor you.
+## Example
+
+```js
+const { Config, Query } = require('skytable-node');
+const cfg = new Config("root", "password");
+
+async function main() {
+    let db;
+    try {
+        db = await cfg.connect();
+        console.log(await db.query(new Query("sysctl report status")));
+    } catch (e) {
+        console.error(e);
+        process.exit(1);
+    } finally {
+        if (db) {
+            await db.disconnect();
+        }
+    }
+}
+
+main()
+```
 
 ## License
 

@@ -87,7 +87,7 @@ export class Connection {
         queryBuffer.length +
         paramsBuffer.reduce((acc, buf) => acc + buf.length, 0);
       // send data
-      this.socket.write("S");
+      this.socket.write('S');
       this.socket.write(packetSize.toString());
       this.socket.write(NEWLINE);
       this.socket.write(qWindow);
