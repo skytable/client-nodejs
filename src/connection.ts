@@ -18,13 +18,13 @@ import {
 import { Query } from './query';
 import {
   NEWLINE,
-  responseDecode,
   Response,
   handshakeEncode,
   handshakeDecode,
 } from './protocol';
 import { Config } from './config';
 import { connectionWrite } from './utils';
+import { Decode } from './decode';
 
 export function createTcp(c: Config): Promise<Connection> {
   return new Promise((resolve, reject) => {
@@ -65,16 +65,30 @@ export class Connection {
   }
   public query(q: Query): Promise<Response> {
     return new Promise((resolve, reject) => {
+      const decode = new Decode();
       // Set listeners
       const dataListener = (buf: Buffer) => {
-        this.socket.removeListener('error', errorListener);
-        resolve(responseDecode(buf));
+        try {
+          decode.append(buf);
+          if (decode.isComplete) {
+            resolve(decode.getValue());
+          }
+        } catch(e) {
+          reject(e);
+        } finally {
+          resetListener();
+        }
+        
       };
       const errorListener = (e: Error) => {
-        this.socket.removeListener('data', dataListener);
+        resetListener();
         reject(e);
       };
-      this.socket.once('data', dataListener);
+      const resetListener = () => {
+        this.socket.off('error', errorListener);
+        this.socket.off('data', dataListener);
+      }
+      this.socket.on('data', dataListener);
       this.socket.once('error', errorListener);
       // Calculate dataframe size
       const queryBuffer = q.getQuery();
