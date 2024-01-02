@@ -4,7 +4,7 @@ import {
   TLSSocket,
   ConnectionOptions as ConnectionTLSOptions,
 } from 'node:tls';
-import { decode } from './decode';
+import { Decode } from './decode';
 
 export function createConnection(options: NetConnectOpts): Promise<Socket> {
   return new Promise((resolve, reject) => {
@@ -54,26 +54,22 @@ export function connectionWriteHandleShake(
   });
 }
 
-
 export function connectionWriteQuery(
   connect: Socket | TLSSocket,
   queryBuffer: Buffer | string,
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     connect.write(queryBuffer, (writeError) => {
-      let decodeResult: { next: any; isPending: boolean, value: any } | undefined = undefined;
+      const decode = new Decode();
 
       const onGetData = (data: Buffer) => {
-        console.log('========onGetData', data);
-        let decodeFn = decodeResult ? decodeResult.next : decode;
-        decodeResult = decodeFn(data);
-        
-        if (!decodeResult?.isPending) {
-          connect.off('data', onGetData);
-          resolve(decodeResult?.value);
-        }
+        decode.append(data);
 
-      }
+        if (decode.isComplete) {
+          connect.off('data', onGetData);
+          resolve(decode.getValue());
+        }
+      };
 
       if (writeError) {
         reject(writeError);
@@ -88,7 +84,6 @@ export function connectionWriteQuery(
     });
   });
 }
-
 
 export function connectionWrite(
   connect: Socket | TLSSocket,

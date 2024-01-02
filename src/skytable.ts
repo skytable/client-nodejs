@@ -1,7 +1,7 @@
 import { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import { connectionWriteQuery } from './connection';
-import { encodeQuery, decodeResponse } from './protocol';
+import { encodeQuery } from './protocol';
 import { Query } from './query';
 
 export type ColumnBase = string | number | boolean | null | bigint;
@@ -32,7 +32,7 @@ export function createDB(connection: Socket | TLSSocket) {
       queryInstance.pushParam(param);
     });
     const buffer = encodeQuery(queryInstance);
-    console.log(queryInstance.getQuery(), '==========')
+
     return await connectionWriteQuery(connection, buffer);
   };
   return {

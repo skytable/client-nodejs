@@ -1,3 +1,12 @@
+import type {
+  Column,
+  ColumnBase,
+  ColumnList,
+  QueryResult,
+  Row,
+  Rows,
+} from './skytable';
+
 const RESPONSES_RESULT = {
   NULL: 0,
   BOOL: 1,
@@ -20,269 +29,353 @@ const RESPONSES_RESULT = {
   MULTIROW: 0x13,
 };
 
-// TODO error for ROW | LIST | ROWS
-export function decode(buffer: Buffer) {
-  const resultType = buffer.readInt8(0);
-  let sourceBuffer = buffer.subarray(1);
-  let cursor = 0;
+export class Decode {
+  private _isComplete: boolean = false;
+  public buffer: Buffer | null = null;
+  public overflowBuffer: Buffer = Buffer.from([]);
+  private value: QueryResult | undefined;
+  private result: { [key: string]: unknown } = {};
 
-  // @ts-ignore
-  let value = undefined;
-  let isPending = true;
-
-  const state = {
-    list: { offset: 0, size: 0 },
-    row: { offset: 0, size: 0 },
-    rows: { offset: 0, rowSize: 0, comOffset: 0, comSize: 0 },
+  constructor(buffer?: Buffer) {
+    if (buffer) {
+      this.buffer = buffer;
+      this.overflowBuffer = buffer;
+      this.decode();
+    }
   }
 
-  const setValue = (val: any, offset = 0) => {
-    value = val;
-    cursor += offset;
-    isPending = false;
+  public get isComplete(): boolean {
+    return this._isComplete;
   }
 
-  const getNextSplitOffset = (): number => {
-    for (let i = cursor; i < sourceBuffer.length; i++) {
-      if (sourceBuffer[i] === '\n'.charCodeAt(0)) {
+  public set isComplete(value: boolean) {
+    this._isComplete = value;
+  }
+
+  getValue() {
+    return this.value;
+  }
+
+  getOverflowBuffer() {
+    return this.overflowBuffer;
+  }
+
+  setValue(value: QueryResult, isComplete?: boolean) {
+    this.isComplete = isComplete != null ? isComplete : true;
+    this.value = value;
+  }
+
+  setResult(values: { [key: string]: any }) {
+    this.result = {
+      ...this.result,
+      ...values,
+    };
+  }
+
+  pushBuffer(buffer: Buffer) {
+    if (this.buffer) {
+      this.buffer = Buffer.concat([this.buffer, buffer]);
+    } else {
+      this.buffer = buffer;
+    }
+  }
+
+  pushOverflowBuffer(buffer: Buffer) {
+    this.overflowBuffer = Buffer.concat([this.overflowBuffer, buffer]);
+  }
+
+  sliceBuffer(start: number, end: number, overflowOffset: number = 0) {
+    const result = this.overflowBuffer.subarray(start, end);
+    this.overflowBuffer = this.overflowBuffer.subarray(end + overflowOffset);
+
+    return result;
+  }
+
+  getType() {
+    if (this.result.type != null) {
+      return this.result.type;
+    }
+
+    const type = this.sliceBuffer(0, 1).readInt8();
+
+    this.setResult({ type });
+
+    return type;
+  }
+
+  getNextSplitOffset(): number {
+    for (let i = 0; i < this.overflowBuffer.length; i++) {
+      if (this.overflowBuffer[i] === '\n'.charCodeAt(0)) {
         return i;
       }
     }
 
-    isPending = true;
     return -1;
   }
-  
 
-  const parseNumber = <T = number>(
-    formatFn: (string: string) => T
-  ) => {
-    const offset = getNextSplitOffset();
+  parseNumber<T = number>(formatFn: (string: string) => T) {
+    const offset = this.getNextSplitOffset();
     if (offset === -1) {
       return;
     }
-    const val = formatFn(sourceBuffer.subarray(cursor, offset).toString('utf-8'));
-console.log(sourceBuffer, sourceBuffer.subarray(cursor, offset), cursor, offset + 1, 'llllllllllllllll', val)
-    setValue(val, offset - cursor + 1)
+    const val: T = formatFn(this.sliceBuffer(0, offset, 1).toString('utf-8'));
+    this.setValue(val as QueryResult);
   }
 
-  const decodeValue = () => {
-    switch (resultType) {
-      case RESPONSES_RESULT.NULL: // Null
-        return setValue(null);
-      case RESPONSES_RESULT.BOOL: // Bool
-        return setValue(Boolean(sourceBuffer.readUInt8(cursor)), 1);
-      case RESPONSES_RESULT.U8INT: // 8-bit Unsigned Integer
-        return parseNumber(Number);
-      case RESPONSES_RESULT.U16INT: // 16-bit Unsigned Integer
-        return parseNumber(Number);
-      case RESPONSES_RESULT.U32INT: // 32-bit Unsigned Integer
-        return parseNumber(Number);
-      case RESPONSES_RESULT.U64INT: // 64-bit Unsigned Integer
-        return parseNumber<bigint>(BigInt);
-      case RESPONSES_RESULT.S8INT: // 8-bit Signed Integer
-        return parseNumber(Number);
-      case RESPONSES_RESULT.S16INT: // 16-bit Signed Integer
-        return parseNumber(Number);
-      case RESPONSES_RESULT.S32INT: // 32-bit Signed Integer
-        return parseNumber(Number);
-      case RESPONSES_RESULT.S64INT: // 64-bit Signed Integer
-        return parseNumber<bigint>(BigInt);
-      case RESPONSES_RESULT.FLOAT32: // f32
-        return parseNumber(Number.parseFloat);
-      case RESPONSES_RESULT.FLOAT64: // f64
-        return parseNumber(Number.parseFloat);
-      case RESPONSES_RESULT.BINARY: {
-        //  Binary <size>\n<payload>,
-        const sizeOffset = getNextSplitOffset();
-        if (sizeOffset === -1) {
-          return;
-        }
-
-        const size = Number(sourceBuffer.subarray(cursor, sizeOffset).toString('utf-8'));
-        const [start, end] = [cursor, sizeOffset + Number(size)];
-
-        if (end > sourceBuffer.length) {
-          isPending = true;
-          return;
-        }
-        setValue(sourceBuffer.subarray(start, end), end - cursor)
-        break;
-      }
-      case RESPONSES_RESULT.STRING: {
-        // String <size>\n<body>
-        const sizeOffset = getNextSplitOffset();
-
-        if (sizeOffset === -1) {
-          return;
-        }
-        const size = Number(sourceBuffer.subarray(cursor, sizeOffset).toString('utf-8'));
-        const [start, end] = [sizeOffset + 2, sizeOffset + 2 + Number(size)];
-        
-
-        if (end > sourceBuffer.length) {
-          isPending = true;
-          return;
-        }
-
-        const str = buffer.subarray(start, end).toString('utf-8');
-        setValue(str, end - cursor);
-
-        break;
-      }
-      case RESPONSES_RESULT.LIST: {
-        // List <size>\n<body>
-        const sizeOffset = state.list.offset ? state.list.offset : getNextSplitOffset();
-        state.list.offset = sizeOffset;
-
-        if (sizeOffset === -1) {
-          return;
-        }
-
-        const isHistory = Boolean(state.list.size);
-        const size = state.list.size ? state.list.size : Number(sourceBuffer.subarray(cursor, sizeOffset).toString('utf-8'));
-        state.list.size = size;
-        if (size === 0) {
-          setValue([], sizeOffset + 1 - cursor)
-        }
-        if (!isHistory) {
-          cursor += 1;
-        }
-        
-        // @ts-ignore
-        let values = (value || []);
-        for (let i = values.length; i < size; i++) {
-          const { value: innerValue, isPending: innerPending, cursor: innerCursor } = decode(sourceBuffer.subarray(cursor));
-          if (innerPending) {
-            break;
-          }
-
-          values[i] = innerValue;
-          cursor += innerCursor;
-        }
-
-        setValue(values)
-        break;
-      }
-      default:
-        throw new Error(`Unknown data type: ${resultType}`);
+  parseBinary() {
+    const sizeOffset = this.getNextSplitOffset();
+    if (sizeOffset === -1) {
+      return;
     }
+
+    const size =
+      this.result.size != null
+        ? this.result.size
+        : Number(this.sliceBuffer(0, sizeOffset, 1).toString('utf-8'));
+    const [start, end] = [0, Number(size)];
+
+    if (end > this.overflowBuffer.length) {
+      this.setResult({
+        size: size,
+      });
+      return;
+    }
+
+    this.setValue(this.sliceBuffer(start, end));
   }
 
-  const decodeResponse = () => {
-    switch (resultType) {
-      case RESPONSES_RESULT.EMPTY:
-        setValue(null);
+  parseString() {
+    // String <size>\n<body>
+    const sizeOffset = this.getNextSplitOffset();
+
+    if (sizeOffset === -1) {
+      return;
+    }
+    const size =
+      this.result.size != null
+        ? this.result.size
+        : Number(this.sliceBuffer(0, sizeOffset, 1).toString('utf-8'));
+    const [start, end] = [0, Number(size)];
+
+    if (end > this.overflowBuffer.length) {
+      this.setResult({
+        size: size,
+      });
+      return;
+    }
+
+    const str = this.sliceBuffer(start, end).toString('utf-8');
+    this.setValue(str);
+  }
+
+  parseList() {
+    // List <size>\n<body>
+    const sizeOffset = this.getNextSplitOffset();
+
+    if (sizeOffset === -1) {
+      return;
+    }
+
+    const size: number =
+      this.result.size != null
+        ? (this.result.size as number)
+        : Number(this.sliceBuffer(0, sizeOffset, 1).toString('utf-8'));
+
+    if (size === 0) {
+      this.setValue([]);
+      return;
+    }
+
+    let i: number = (this.result.i as number) || 0;
+    let list: ColumnList<ColumnBase>[] =
+      (this.result.list as ColumnList<ColumnBase>[]) || [];
+
+    while (i < size) {
+      const decode = new Decode(this.overflowBuffer);
+      const value = decode.getValue();
+      const overflowBuffer = decode.getOverflowBuffer();
+
+      if (!decode.isComplete) {
+        this.setResult({
+          size,
+          i,
+          list,
+        });
         break;
-      case RESPONSES_RESULT.ROW:
-        {
-          const offset = state.row.offset ? state.row.offset : getNextSplitOffset();
-          state.row.offset = offset;
-          if (offset === -1) {
-            return;
-          }
+      }
 
-          const columnCount = state.row.size ? state.row.size : Number(sourceBuffer.subarray(cursor, offset).toString('utf-8'));
-          state.row.size = columnCount;
+      this.overflowBuffer = overflowBuffer;
+      list[i] = value as ColumnBase;
+      i += 1;
+    }
 
-          cursor = offset + 1;
-          if (columnCount === 0) {
-            return setValue([]);
-          }
+    this.setValue(list, list.length === size);
+  }
 
-          // @ts-ignore
-          let row = (value || []);
-          const start = row.length;
-          for (let i = start; i < columnCount; i++) {
-            const { value: innerValue, isPending: innerPending, cursor: innerCursor } = decode(sourceBuffer.subarray(cursor));
-            if (innerPending) {
-              break;
-            }
+  parseRow() {
+    const sizeOffset = this.getNextSplitOffset();
 
-            row[i] = innerValue;
-            cursor += innerCursor;
-          }
+    if (sizeOffset === -1) {
+      return;
+    }
 
-          setValue(row)
+    const size =
+      this.result.size != null
+        ? (this.result.size as number)
+        : Number(this.sliceBuffer(0, sizeOffset, 1).toString('utf-8'));
 
+    if (size === 0) {
+      this.setValue([]);
+      return;
+    }
+
+    let i: number = (this.result.i as number) || 0;
+    let row: Row = (this.result.row as Row) || [];
+
+    while (i < size) {
+      const decode = new Decode(this.overflowBuffer);
+      const value = decode.getValue();
+      const overflowBuffer = decode.getOverflowBuffer();
+
+      if (!decode.isComplete) {
+        this.setResult({ size, i, row });
+        break;
+      }
+
+      this.overflowBuffer = overflowBuffer;
+      row[i] = value as Column;
+      i++;
+    }
+
+    this.setValue(row, row.length === size);
+  }
+
+  parseRows() {
+    const rowOffset = this.getNextSplitOffset();
+    if (rowOffset === -1) {
+      return;
+    }
+
+    const rowCount =
+      this.result.rowCount != null
+        ? (this.result.rowCount as number)
+        : Number(this.sliceBuffer(0, rowOffset, 1).toString('utf-8'));
+
+    if (rowCount === 0) {
+      this.setValue([]);
+      return;
+    }
+
+    const columnOffset = this.getNextSplitOffset();
+
+    if (columnOffset === -1) {
+      return;
+    }
+
+    const columnCount =
+      this.result.columnCount != null
+        ? (this.result.columnCount as number)
+        : Number(this.sliceBuffer(0, columnOffset, 1).toString('utf-8'));
+
+    const rows: Rows = (this.result.rows as Row[]) || [];
+    const length = rows.length;
+    for (let i = length; i < rowCount; i++) {
+      rows[i] = rows[i] || [];
+      const count = rows[i].length;
+      for (let j = count; j < columnCount; j++) {
+        const decode = new Decode(this.overflowBuffer);
+        const value = decode.getValue();
+        const overflowBuffer = decode.getOverflowBuffer();
+
+        if (!decode.isComplete) {
+          this.setResult({ rows, columnCount, rowCount });
           break;
         }
+
+        this.overflowBuffer = overflowBuffer;
+        rows[i][j] = value as Column;
+      }
+    }
+
+    this.setValue(
+      rows,
+      rows.every((row: Row) => row.length === columnCount),
+    );
+  }
+
+  decode() {
+    const type = this.getType();
+
+    switch (type) {
+      case RESPONSES_RESULT.NULL: // Null
+        this.setValue(null);
+        break;
+      case RESPONSES_RESULT.BOOL: // Bool
+        this.setValue(Boolean(this.sliceBuffer(0, 1).readUInt8()));
+        break;
+      case RESPONSES_RESULT.U8INT: // 8-bit Unsigned Integer
+        this.parseNumber(Number);
+        break;
+      case RESPONSES_RESULT.U16INT: // 16-bit Unsigned Integer
+        this.parseNumber(Number);
+        break;
+      case RESPONSES_RESULT.U32INT: // 32-bit Unsigned Integer
+        this.parseNumber(Number);
+        break;
+      case RESPONSES_RESULT.U64INT: // 64-bit Unsigned Integer
+        this.parseNumber<bigint>(BigInt);
+        break;
+      case RESPONSES_RESULT.S8INT: // 8-bit Signed Integer
+        this.parseNumber(Number);
+        break;
+      case RESPONSES_RESULT.S16INT: // 16-bit Signed Integer
+        this.parseNumber(Number);
+        break;
+      case RESPONSES_RESULT.S32INT: // 32-bit Signed Integer
+        this.parseNumber(Number);
+        break;
+      case RESPONSES_RESULT.S64INT: // 64-bit Signed Integer
+        this.parseNumber<bigint>(BigInt);
+        break;
+      case RESPONSES_RESULT.FLOAT32: // f32
+        this.parseNumber(Number.parseFloat);
+        break;
+      case RESPONSES_RESULT.FLOAT64: // f64
+        this.parseNumber(Number.parseFloat);
+        break;
+      case RESPONSES_RESULT.BINARY:
+        this.parseBinary();
+        break;
+      case RESPONSES_RESULT.STRING:
+        this.parseString();
+        break;
+      case RESPONSES_RESULT.LIST:
+        this.parseList();
+        break;
+      case RESPONSES_RESULT.EMPTY:
+        this.setValue(null);
+        break;
+      case RESPONSES_RESULT.ROW:
+        this.parseRow();
+        break;
       case RESPONSES_RESULT.MULTIROW:
-        const isHistory = Boolean(state.rows.offset);
-        const offset = state.rows.offset ? state.rows.offset : getNextSplitOffset();
-        state.rows.offset = offset;
-        if (offset === -1) {
-          return;
-        }
-
-        const rowCount = Number(sourceBuffer.subarray(cursor, offset).toString('utf-8'));
-        state.rows.rowSize = rowCount;
-
-        if (rowCount === 0) {
-          return setValue([], offset + 1 - cursor);
-        }
-
-        
-        if (!isHistory) {
-          cursor += 1;
-        }
-
-        const isColumnHistory = Boolean(state.rows.offset);
-        const columnOffset = state.rows.comOffset ? state.rows.comOffset : getNextSplitOffset();
-        state.rows.comOffset = columnOffset;
-        if (offset === -1) {
-          return;
-        }
-        const columnCount = state.rows.comSize ? state.rows.comSize : Number(
-          sourceBuffer.subarray(cursor, columnOffset).toString('utf-8'),
-        );
-        state.rows.comSize = columnCount;
-
-        if (!isColumnHistory) {
-          cursor += 1;
-        }
-
-        // @ts-ignore
-        const rows = value || [];
-        let nextBuffer = sourceBuffer;
-        for (let i = rows.length; i < rowCount; i++) {
-          const row = rows[i];
-          const count = row?.length || 0;
-
-          for (let j = count; j < columnCount; j++) {
-            const { value: innerValue, isPending: innerPending, cursor: innerCursor } = decode(nextBuffer.subarray(cursor));
-
-            if (innerPending) {
-              break;
-            }
-
-            row[j] = innerValue;
-            cursor += innerCursor;
-          }
-        }
-
-        setValue(rows);
+        this.parseRows();
         break;
       case RESPONSES_RESULT.ERROR:
         throw new Error(
-          `response error code: ${sourceBuffer.subarray(1, 2).readInt8()}`,
+          `response error code: ${this.sliceBuffer(0, 1).readInt8()}`,
         );
       default:
-        decodeValue();
+        throw new Error(`Unknown data type: ${type}`);
     }
   }
 
+  append(buffer: Buffer) {
+    this.pushBuffer(buffer);
+    this.pushOverflowBuffer(buffer);
 
-  decodeResponse();
-  return {
-    value,
-    cursor,
-    isPending,
-    next(nextBuffer: Buffer) {
-      sourceBuffer = Buffer.concat([sourceBuffer, nextBuffer]);
-      decodeResponse();
+    this.decode();
 
-      return this;
-    }
+    return this.isComplete;
   }
 }
